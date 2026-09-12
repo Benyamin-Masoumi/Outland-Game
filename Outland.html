@@ -1,0 +1,2936 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>Quiet Trails</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink: #f2f4f8;
+    --ink-dim: rgba(242,244,248,0.62);
+    --panel: rgba(9,12,20,0.55);
+    --panel-strong: rgba(7,9,16,0.82);
+    --line: rgba(255,255,255,0.11);
+    --accent: #e6b25e;
+    --accent-dim: rgba(230,178,94,0.18);
+    --mars: #d97a4a;
+    font-size: 16px;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color: transparent; user-select:none;}
+  html,body{height:100%; margin:0; overflow:hidden; background:#03050a;}
+  body{ font-family:'Manrope', sans-serif; color:var(--ink); touch-action: manipulation; overscroll-behavior: none; }
+  #game{position:fixed; inset:0;}
+  canvas{display:block; width:100%; height:100%;}
+  .serif{ font-family:'Cormorant Garamond', serif; }
+
+  #hud{
+    position:fixed; inset:0; pointer-events:none;
+    padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) 16px max(16px, env(safe-area-inset-left));
+    display:flex; flex-direction:column; justify-content:space-between;
+    z-index: 5; transition: opacity .5s ease;
+  }
+  #hud.hidden{ opacity:0; pointer-events:none; }
+  .hud-row{ display:flex; justify-content:space-between; align-items:flex-start; }
+  .pill{
+    pointer-events:auto;
+    background:var(--panel);
+    backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+    border:1px solid var(--line);
+    border-radius:999px;
+    padding:9px 16px;
+    display:flex; align-items:center; gap:8px;
+    font-size:0.95rem; font-weight:600;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.18);
+  }
+  .pill .num{ font-variant-numeric: tabular-nums; }
+  .pill .label{ font-weight:500; color:var(--ink-dim); font-size:0.72rem; letter-spacing:0.04em; margin-right:2px;}
+  .icon-btn{
+    pointer-events:auto;
+    width:42px; height:42px; border-radius:50%;
+    background:var(--panel); border:1px solid var(--line);
+    backdrop-filter: blur(12px);
+    display:flex; align-items:center; justify-content:center;
+    color:var(--ink); cursor:pointer;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.18);
+  }
+  .hud-right{ display:flex; gap:10px; align-items:flex-start; }
+  #speedTag{
+    align-self:center; pointer-events:none;
+    background:var(--panel); border:1px solid var(--line); border-radius:999px;
+    padding:6px 14px; font-size:0.7rem; color: var(--ink-dim); letter-spacing:0.03em;
+    backdrop-filter: blur(12px);
+  }
+
+  #toastWrap{ position:fixed; top:14%; left:0; right:0; display:flex; flex-direction:column; align-items:center; gap:8px; pointer-events:none; z-index:6;}
+  .coinFloat{
+    font-family:'Cormorant Garamond', serif; font-weight:600; font-size:1.55rem; color:var(--accent);
+    text-shadow: 0 2px 16px rgba(0,0,0,0.55);
+    opacity:0; animation: coinPop 1.6s ease-out forwards;
+  }
+  @keyframes coinPop{
+    0%{ opacity:0; transform:translateY(12px) scale(0.92);}
+    16%{ opacity:1; transform:translateY(-4px) scale(1);}
+    78%{ opacity:1; transform:translateY(-24px) scale(1);}
+    100%{ opacity:0; transform:translateY(-38px) scale(1);}
+  }
+  .discoveryToast{
+    pointer-events:none;
+    background:var(--panel-strong); border:1px solid var(--line); border-radius:14px;
+    padding:10px 18px; text-align:center; backdrop-filter: blur(10px);
+    opacity:0; animation: discFade 4.2s ease forwards;
+  }
+  .discoveryToast .dt-label{ font-size:0.62rem; letter-spacing:0.12em; color:var(--ink-dim); }
+  .discoveryToast .dt-name{ font-family:'Cormorant Garamond', serif; font-size:1.25rem; font-weight:600; margin-top:2px;}
+  @keyframes discFade{
+    0%{opacity:0; transform:translateY(-8px);}
+    10%{opacity:1; transform:translateY(0);}
+    85%{opacity:1;}
+    100%{opacity:0; transform:translateY(-6px);}
+  }
+
+  #tapLayer{ position:fixed; inset:0; z-index:4; }
+
+  .screen{
+    position:fixed; inset:0; z-index:20; display:none;
+    background: linear-gradient(180deg, rgba(3,5,10,0.82), rgba(3,5,10,0.94));
+    backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+    padding: 0 max(20px, env(safe-area-inset-right)) calc(28px + env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left));
+    overflow-y:auto; -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    touch-action: pan-y;
+    animation: screenIn .28s ease;
+  }
+  @keyframes screenIn{ from{opacity:0; transform:scale(0.99);} to{opacity:1; transform:scale(1);} }
+  .screen.active{ display:block; }
+
+  .screen-head{
+    position: sticky; top: 0; z-index: 3;
+    display:flex; align-items:center; justify-content:space-between;
+    padding: max(22px, env(safe-area-inset-top)) 0 14px 0;
+    margin-bottom: 12px;
+    background: linear-gradient(180deg, rgba(3,5,10,0.94) 60%, rgba(3,5,10,0));
+  }
+  .screen-title{ font-family:'Cormorant Garamond', serif; font-size:1.9rem; font-weight:600; }
+  .close-btn{
+    width:38px; height:38px; border-radius:50%; background:rgba(255,255,255,0.06); border:1px solid var(--line);
+    display:flex; align-items:center; justify-content:center; color:var(--ink); cursor:pointer;
+    flex-shrink: 0;
+  }
+  .menu-list{ display:flex; flex-direction:column; gap:10px; max-width:420px; margin: 22px auto 0;}
+  .menu-item{
+    background:var(--panel-strong); border:1px solid var(--line); border-radius:16px; padding:16px 18px;
+    font-size:1.02rem; font-weight:600; display:flex; justify-content:space-between; align-items:center; cursor:pointer;
+    transition: transform .12s ease;
+  }
+  .menu-item:active{ transform:scale(0.98); }
+  .menu-item .chev{ color:var(--ink-dim); font-weight:400; }
+  .menu-item.mars-item{ border-color: rgba(230,178,94,0.4); background: linear-gradient(135deg, rgba(230,178,94,0.14), var(--panel-strong)); }
+  .menu-item.gift-item{ border-color: rgba(120,220,150,0.4); background: linear-gradient(135deg, rgba(120,220,150,0.14), var(--panel-strong)); }
+  .menu-brand{ text-align:center; margin-bottom: 26px; }
+  .menu-brand .t1{ font-family:'Cormorant Garamond', serif; font-size:2.3rem; font-weight:600;}
+  .menu-brand .t2{ color:var(--ink-dim); font-size:0.84rem; margin-top:4px; font-style:italic; font-family:'Cormorant Garamond', serif;}
+
+  .grid{ display:grid; grid-template-columns: repeat(2, 1fr); gap:12px; max-width:520px; margin: 0 auto; }
+  .char-card{
+    background:var(--panel-strong); border:1px solid var(--line); border-radius:18px;
+    padding:14px 12px 14px; text-align:center; cursor:pointer; transition: border-color .15s ease;
+  }
+  .char-card.selected{ border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
+  .char-card canvas{ width:100%; height:104px; }
+  .char-card .cname{ font-weight:700; font-size:0.9rem; margin-top:4px;}
+  .char-card .cdesc{ font-size:0.7rem; color:var(--ink-dim); margin-top:1px; }
+
+  .upg-list{ display:flex; flex-direction:column; gap:12px; max-width:480px; margin:0 auto;}
+  .upg-card{
+    background:var(--panel-strong); border:1px solid var(--line); border-radius:18px; padding:16px 18px;
+    display:flex; align-items:center; gap:14px;
+  }
+  .upg-icon{
+    width:46px; height:46px; border-radius:12px; background:var(--accent-dim);
+    display:flex; align-items:center; justify-content:center; flex-shrink:0; color:var(--accent); font-size:1.25rem;
+  }
+  .upg-body{ flex:1; min-width:0; }
+  .upg-name{ font-weight:700; font-size:0.96rem; }
+  .upg-desc{ font-size:0.74rem; color:var(--ink-dim); margin-top:1px;}
+  .upg-meta{ font-size:0.68rem; color: rgba(242,244,248,0.4); margin-top:5px;}
+  .upg-dots{ display:flex; gap:4px; margin-top:7px; }
+  .dot{ width:16px; height:5px; border-radius:3px; background:rgba(255,255,255,0.14); }
+  .dot.filled{ background:var(--accent); }
+  .upg-btn{
+    padding:9px 14px; border-radius:999px; border:1px solid var(--line); background:rgba(255,255,255,0.05);
+    color:var(--ink); font-weight:700; font-size:0.82rem; cursor:pointer; white-space:nowrap; min-width:76px; text-align:center;
+    transition: transform .1s ease;
+  }
+  .upg-btn:active{ transform:scale(0.95); }
+  .upg-btn.afford{ background:var(--accent); color:#241a05; border-color:var(--accent); }
+  .upg-btn.max{ opacity:0.4; }
+
+  .special-card{
+    max-width:480px; margin: 4px auto 18px; border-radius:20px; padding:20px;
+    background: radial-gradient(120% 160% at 20% 0%, rgba(230,178,94,0.28), rgba(9,12,20,0.9) 60%);
+    border:1px solid rgba(230,178,94,0.5);
+    box-shadow: 0 0 40px rgba(230,178,94,0.12);
+    text-align:center;
+  }
+  .special-card .rocket{ font-size:2.4rem; }
+  .special-card .sname{ font-family:'Cormorant Garamond', serif; font-size:1.5rem; font-weight:700; margin-top:4px; letter-spacing:0.04em;}
+  .special-card .sprice{ font-weight:800; font-size:1.05rem; color:var(--accent); margin-top:2px; letter-spacing:0.02em;}
+  .special-card .sdesc{ font-size:0.8rem; color:var(--ink-dim); margin:8px 0 14px; line-height:1.5;}
+  .special-btn{
+    display:inline-block; padding:12px 28px; border-radius:999px; font-weight:700; font-size:0.86rem;
+    background:var(--accent); color:#241a05; cursor:pointer; border:none;
+  }
+  .special-btn.owned{ background:rgba(120,220,150,0.16); color:#8be0a0; border:1px solid rgba(120,220,150,0.4); }
+  .special-btn.locked{ background:rgba(255,255,255,0.06); color:var(--ink-dim); border:1px solid var(--line); cursor:default; }
+
+  .stat-grid{ display:flex; flex-direction:column; gap:10px; max-width:480px; margin:0 auto;}
+  .stat-row{
+    display:flex; justify-content:space-between; align-items:center; background:var(--panel-strong);
+    border:1px solid var(--line); border-radius:14px; padding:14px 18px;
+  }
+  .stat-row .k{ color:var(--ink-dim); font-size:0.85rem; }
+  .stat-row .v{ font-weight:700; font-variant-numeric: tabular-nums; }
+
+  .set-list{ display:flex; flex-direction:column; gap:10px; max-width:480px; margin:0 auto;}
+  .set-row{
+    background:var(--panel-strong); border:1px solid var(--line); border-radius:14px; padding:14px 18px;
+  }
+  .set-row.flex{ display:flex; justify-content:space-between; align-items:center; }
+  .set-row .sname{ font-size:0.86rem; margin-bottom:8px; display:flex; justify-content:space-between;}
+  .set-row .sname .pct{ color:var(--ink-dim); font-variant-numeric: tabular-nums; }
+  input[type=range]{
+    -webkit-appearance:none; appearance:none; width:100%; height:4px; border-radius:2px; background: rgba(255,255,255,0.14); outline:none;
+    touch-action: pan-y;
+  }
+  input[type=range]::-webkit-slider-thumb{
+    -webkit-appearance:none; width:18px; height:18px; border-radius:50%; background:var(--accent); cursor:pointer;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+  }
+  input[type=range]::-moz-range-thumb{
+    width:18px; height:18px; border-radius:50%; background:var(--accent); cursor:pointer; border:none;
+  }
+  .switch{ width:46px; height:27px; border-radius:999px; background:rgba(255,255,255,0.14); position:relative; cursor:pointer; flex-shrink:0; transition: background .15s; }
+  .switch.on{ background: var(--accent); }
+  .switch .knob{ position:absolute; top:3px; left:3px; width:21px; height:21px; border-radius:50%; background:#0e0e12; transition: transform .15s; }
+  .switch.on .knob{ transform: translateX(19px); background:#241a05; }
+
+  .gift-card{
+    max-width:480px; margin: 8px auto 18px; border-radius:20px; padding:24px 22px;
+    background: radial-gradient(120% 160% at 20% 0%, rgba(120,220,150,0.28), rgba(9,12,20,0.9) 60%);
+    border:1px solid rgba(120,220,150,0.5);
+    box-shadow: 0 0 40px rgba(120,220,150,0.12);
+    text-align:center;
+  }
+  .gift-card .gicon{ font-size:2.6rem; }
+  .gift-card .gtitle{ font-family:'Cormorant Garamond', serif; font-size:1.6rem; font-weight:700; margin-top:4px; letter-spacing:0.04em;}
+  .gift-card .gdesc{ font-size:0.82rem; color:var(--ink-dim); margin:8px 0 16px; line-height:1.6;}
+  .gift-input{
+    width:100%; max-width:280px; margin:0 auto 14px;
+    background: rgba(255,255,255,0.06); border:1px solid var(--line); border-radius:12px;
+    padding:13px 16px; color:var(--ink); font-size:1.05rem; font-family:'Manrope', sans-serif;
+    text-align:center; letter-spacing:0.35em; outline:none;
+    transition: border-color .15s ease, box-shadow .15s ease;
+    user-select:text; -webkit-user-select:text;
+  }
+  .gift-input:focus{ border-color: var(--accent); box-shadow: 0 0 0 3px rgba(230,178,94,0.15); }
+  .gift-input::placeholder{ letter-spacing:0.12em; color: rgba(242,244,248,0.35); }
+  .gift-btn{
+    display:inline-block; padding:13px 34px; border-radius:999px; font-weight:700; font-size:0.9rem;
+    background:#6ac18a; color:#0d2417; cursor:pointer; border:none; letter-spacing:0.04em;
+    transition: transform .1s ease;
+  }
+  .gift-btn:active{ transform:scale(0.96); }
+  .gift-msg{
+    min-height:22px; margin-top:14px; font-size:0.85rem; font-weight:600;
+    transition: opacity .25s ease;
+  }
+  .gift-msg.ok{ color:#8be0a0; }
+  .gift-msg.err{ color:#e88a8a; }
+  .gift-msg small{ display:block; font-weight:500; color:var(--ink-dim); margin-top:4px; font-size:0.7rem;}
+
+  .gift-history{
+    max-width:480px; margin: 0 auto 18px;
+    background: var(--panel-strong); border:1px solid var(--line); border-radius:14px;
+    padding: 12px 16px;
+  }
+  .gift-history .gh-title{
+    font-size:0.7rem; letter-spacing:0.12em; color:var(--ink-dim); margin-bottom:8px;
+  }
+  .gift-history .gh-row{
+    display:flex; justify-content:space-between; align-items:center;
+    font-size:0.8rem; padding: 6px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+  }
+  .gift-history .gh-row:last-child{ border-bottom:none; }
+  .gift-history .gh-code{
+    font-family: 'Cormorant Garamond', serif; font-weight:700; letter-spacing:0.15em;
+    color: var(--accent);
+  }
+  .gift-history .gh-reward{ color:#8be0a0; font-weight:600; font-variant-numeric: tabular-nums;}
+
+  #endingOverlay{
+    position:fixed; inset:0; z-index:30; display:none; align-items:center; justify-content:center; flex-direction:column;
+    text-align:center; padding:30px;
+  }
+  #endingOverlay.active{ display:flex; }
+  .ending-line{
+    font-family:'Cormorant Garamond', serif; font-style:italic; font-size:1.5rem; opacity:0; margin:6px 0;
+    transition: opacity 1.4s ease;
+  }
+  .ending-line.show{ opacity:1; }
+  .ending-final{
+    font-family:'Cormorant Garamond', serif; font-size:2.6rem; letter-spacing:0.12em; margin-top:18px; opacity:0;
+    transition: opacity 1.4s ease;
+  }
+  .ending-final.show{ opacity:1; }
+  #returnBtn{
+    margin-top:30px; padding:13px 30px; border-radius:999px; border:1px solid var(--line);
+    background: var(--accent); color:#241a05; font-weight:700; cursor:pointer; opacity:0; transition: opacity 1s ease;
+  }
+  #returnBtn.show{ opacity:1; }
+
+  ::-webkit-scrollbar{ display:none; }
+
+  #npcBubble{
+    position:fixed; z-index:8; pointer-events:none; transform:translate(-50%,-100%);
+    background:var(--panel-strong); border:1px solid var(--line); border-radius:14px;
+    padding:9px 14px; max-width:220px; font-size:0.86rem; line-height:1.5; text-align:right;
+    opacity:0; transition:opacity .35s ease; backdrop-filter: blur(10px);
+  }
+  #npcBubble.show{ opacity:1; }
+
+  #vehiclePill{ display:flex; flex-direction:column; align-items:flex-start; gap:5px; min-width:118px; }
+  #vehicleTop{ display:flex; align-items:center; gap:6px; font-size:0.82rem; }
+  #coinProgTrack{ width:100%; height:4px; border-radius:2px; background:rgba(255,255,255,0.14); overflow:hidden; }
+  #coinProgFill{ height:100%; background:var(--accent); width:0%; transition: width .18s ease; }
+
+  #rotatePrompt{
+    position:fixed; inset:0; z-index:50; display:none; align-items:center; justify-content:center; flex-direction:column;
+    background:#03050a; color:var(--ink); text-align:center; padding:30px; gap:14px;
+  }
+  #rotatePrompt.show{ display:flex; }
+  #rotatePrompt .ricon{ font-size:2.6rem; animation: rotIcon 1.6s ease-in-out infinite; }
+  @keyframes rotIcon{ 0%,100%{ transform:rotate(0deg);} 50%{ transform:rotate(90deg);} }
+  #rotatePrompt .rtext{ font-family:'Cormorant Garamond', serif; font-size:1.3rem; }
+
+  #startOverlay{
+    position:fixed; inset:0; z-index:60; display:none; align-items:center; justify-content:center; flex-direction:column;
+    background: radial-gradient(120% 160% at 50% 30%, #101a2e, #03050a 70%);
+    text-align:center; padding:30px; gap:22px;
+    transition: opacity .5s ease;
+  }
+  #startOverlay.hidden{ opacity:0; pointer-events:none; }
+  #startOverlay .st1{
+    font-family:'Cormorant Garamond', serif; font-size:3.2rem; font-weight:600; letter-spacing:0.04em;
+    text-shadow: 0 4px 30px rgba(230,178,94,0.25);
+  }
+  #startOverlay .st2{
+    font-family:'Cormorant Garamond', serif; font-style:italic; font-size:1rem; color:var(--ink-dim); margin-top:-10px;
+  }
+  #startOverlay .st-btn{
+    margin-top:14px;
+    padding:16px 44px; border-radius:999px; border:none; cursor:pointer;
+    background: var(--accent); color:#241a05; font-weight:800; font-size:1rem; letter-spacing:0.12em;
+    box-shadow: 0 12px 40px rgba(230,178,94,0.35);
+    transition: transform .12s ease;
+  }
+  #startOverlay .st-btn:active{ transform:scale(0.96); }
+  #startOverlay .st-note{
+    font-size:0.72rem; color:var(--ink-dim); margin-top:6px; max-width:340px; line-height:1.6;
+  }
+
+  #langOverlay{
+    position:fixed; inset:0; z-index:70; display:none; align-items:center; justify-content:center; flex-direction:column;
+    background: radial-gradient(120% 160% at 50% 30%, #101a2e, #03050a 70%);
+    text-align:center; padding:30px; gap:26px;
+  }
+  #langOverlay.show{ display:flex; }
+  #langOverlay .lg-title{
+    font-family:'Cormorant Garamond', serif; font-size:2rem; font-weight:600;
+    color:var(--ink);
+  }
+  #langOverlay .lg-sub{
+    font-size:0.85rem; color:var(--ink-dim); margin-top:-10px; font-style:italic;
+  }
+  .lang-grid{ display:flex; flex-direction:column; gap:12px; width:100%; max-width:320px; }
+  .lang-option{
+    background:var(--panel-strong); border:1px solid var(--line); border-radius:16px;
+    padding:16px 20px; font-size:1.05rem; font-weight:600; cursor:pointer;
+    display:flex; align-items:center; justify-content:center; gap:10px;
+    transition: border-color .15s ease, transform .12s ease;
+  }
+  .lang-option:active{ transform:scale(0.97); }
+  .lang-option .flag{ font-size:1.4rem; }
+  .lang-option.selected{ border-color:var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
+</style>
+</head>
+<body>
+
+<!-- LANGUAGE PICKER -->
+<div id="langOverlay">
+  <div class="lg-title serif">Quiet Trails</div>
+  <div class="lg-sub">Choose your language · 언어 선택 · انتخاب زبان</div>
+  <div class="lang-grid" id="langGrid">
+    <div class="lang-option" data-lang="en"><span class="flag">🇬🇧</span> English</div>
+    <div class="lang-option" data-lang="ko"><span class="flag">🇰🇷</span> 한국어</div>
+    <div class="lang-option" data-lang="fa"><span class="flag">🇮🇷</span> فارسی</div>
+  </div>
+</div>
+
+<!-- START OVERLAY -->
+<div id="startOverlay">
+  <div class="st1 serif">Quiet Trails</div>
+  <div class="st2">every step, a little further</div>
+  <button class="st-btn" id="startBtn">▶ START</button>
+  <div class="st-note" id="startNote"></div>
+</div>
+
+<div id="game"><canvas id="scene"></canvas></div>
+<div id="rotatePrompt"><div class="ricon">📱</div><div class="rtext serif" id="rotateText">Please rotate your device<br>to landscape to play</div></div>
+<div id="tapLayer"></div>
+<div id="toastWrap"></div>
+<div id="npcBubble" dir="rtl" lang="fa"></div>
+
+<div id="hud">
+  <div class="hud-row">
+    <div class="pill"><span class="label" id="labelSteps">STEPS</span><span class="num" id="stepsHud">0</span></div>
+    <div class="hud-right">
+      <div class="pill" id="vehiclePill">
+        <div id="vehicleTop"><span id="vehicleIcon">🚶</span><span id="coinsHud">0</span>&nbsp;🪙</div>
+        <div id="coinProgTrack"><div id="coinProgFill"></div></div>
+      </div>
+      <div class="icon-btn" id="fsBtn" title="Fullscreen">⛶</div>
+      <div class="icon-btn" id="menuBtn">☰</div>
+    </div>
+  </div>
+  <div style="display:flex; justify-content:center;">
+    <div id="speedTag">grass path · morning</div>
+  </div>
+</div>
+
+<div id="endingOverlay">
+  <div class="ending-line serif" id="endLine1">Every journey begins with one step.</div>
+  <div class="ending-final serif" id="endFinal">THE END</div>
+  <button id="returnBtn">RETURN TO JOURNEY</button>
+</div>
+
+<!-- MAIN MENU -->
+<div class="screen" id="screen-menu">
+  <div class="screen-head"><div class="screen-title" id="titleMenu">Menu</div><div class="close-btn" id="closeMenu">✕</div></div>
+  <div class="menu-brand"><div class="t1">Quiet Trails</div><div class="t2">every step, a little further</div></div>
+  <div class="menu-list">
+    <div class="menu-item" data-open="screen-characters"><span id="menuCharacters">Characters</span> <span class="chev">›</span></div>
+    <div class="menu-item" data-open="screen-shop"><span id="menuShop">Shop &amp; Upgrades</span> <span class="chev">›</span></div>
+    <div class="menu-item" data-open="screen-stats"><span id="menuStats">Stats</span> <span class="chev">›</span></div>
+    <div class="menu-item" data-open="screen-settings"><span id="menuSettings">Settings</span> <span class="chev">›</span></div>
+    <div class="menu-item gift-item" data-open="screen-gift">🎁 <span id="menuGift">Gift Code</span> <span class="chev">›</span></div>
+    <div class="menu-item mars-item" id="marsMenuItem" style="display:none;"><span id="menuMars">Journey to Mars 🚀</span> <span class="chev">›</span></div>
+  </div>
+</div>
+
+<!-- CHARACTER SELECT -->
+<div class="screen" id="screen-characters">
+  <div class="screen-head"><div class="screen-title" id="titleCharacters">Choose your walker</div><div class="close-btn" data-back="screen-menu">✕</div></div>
+  <div class="grid" id="charGrid"></div>
+</div>
+
+<!-- SHOP -->
+<div class="screen" id="screen-shop">
+  <div class="screen-head"><div class="screen-title" id="titleShop">Shop &amp; Upgrades</div><div class="close-btn" data-back="screen-menu">✕</div></div>
+  <div class="upg-list" id="upgList"></div>
+  <div class="special-card" id="bicycleCard">
+    <div class="rocket">🚲</div>
+    <div class="sname" id="bicycleName">BICYCLE</div>
+    <div class="sprice" id="bicyclePrice">400 COINS</div>
+    <div class="sdesc" id="bicycleDesc">Pedal faster than you can walk. Each tap pushes you further down the trail.</div>
+    <div class="special-btn" id="bicycleBtn">BUY — 400 COINS</div>
+  </div>
+  <div class="special-card" id="carCard">
+    <div class="rocket">🚗</div>
+    <div class="sname" id="carName">CAR</div>
+    <div class="sprice" id="carPrice">650 COINS</div>
+    <div class="sdesc" id="carDesc">Far quicker than the bicycle. Cover long distances with every tap.</div>
+    <div class="special-btn" id="carBtn">BUY — 650 COINS</div>
+  </div>
+  <div class="special-card" id="specialCard">
+    <div class="rocket">🚀</div>
+    <div class="sname" id="spacecraftName">SPACECRAFT</div>
+    <div class="sprice" id="spacecraftPrice">1000 COINS</div>
+    <div class="sdesc" id="spacecraftDesc">A once-in-a-lifetime departure. Unlocks a journey to Mars.</div>
+    <div class="special-btn" id="specialBtn">BUY — 1000 COINS</div>
+  </div>
+</div>
+
+<!-- STATS -->
+<div class="screen" id="screen-stats">
+  <div class="screen-head"><div class="screen-title" id="titleStats">Stats</div><div class="close-btn" data-back="screen-menu">✕</div></div>
+  <div class="stat-grid" id="statGrid"></div>
+</div>
+
+<!-- SETTINGS -->
+<div class="screen" id="screen-settings">
+  <div class="screen-head"><div class="screen-title" id="titleSettings">Settings</div><div class="close-btn" data-back="screen-menu">✕</div></div>
+  <div class="set-list">
+    <div class="set-row"><div class="sname"><span id="setMasterVol">Master Volume</span> <span class="pct" id="pctMaster">100%</span></div><input type="range" id="volMaster" min="0" max="100" value="100"></div>
+    <div class="set-row"><div class="sname"><span id="setMusicVol">Music</span> <span class="pct" id="pctMusic">60%</span></div><input type="range" id="volMusic" min="0" max="100" value="60"></div>
+    <div class="set-row"><div class="sname"><span id="setNatureVol">Nature</span> <span class="pct" id="pctNature">100%</span></div><input type="range" id="volNature" min="0" max="100" value="100"></div>
+    <div class="set-row"><div class="sname"><span id="setFootstepsVol">Footsteps</span> <span class="pct" id="pctFootsteps">100%</span></div><input type="range" id="volFootsteps" min="0" max="100" value="100"></div>
+    <div class="set-row flex"><div id="setMuteAll">Mute all</div><div class="switch" id="muteSwitch"><div class="knob"></div></div></div>
+    <div class="set-row flex" id="resetRow" style="cursor:pointer;"><div id="setReset">Reset progress</div><div style="color:var(--ink-dim);">›</div></div>
+    <div class="set-row flex" id="changeLangRow" style="cursor:pointer;"><div id="setChangeLang">Change language</div><div style="color:var(--ink-dim);">›</div></div>
+  </div>
+</div>
+
+<!-- GIFT CODE -->
+<div class="screen" id="screen-gift">
+  <div class="screen-head"><div class="screen-title" id="titleGift">Gift Code</div><div class="close-btn" data-back="screen-menu">✕</div></div>
+  <div class="gift-card">
+    <div class="gicon">🎁</div>
+    <div class="gtitle" id="giftTitle">REDEEM A GIFT</div>
+    <div class="gdesc" id="giftDesc">Enter your gift code below to claim a reward.<br>Each code can only be used once.</div>
+    <input type="text" id="giftInput" class="gift-input" inputmode="numeric" autocomplete="off" autocorrect="off" spellcheck="false" placeholder="ENTER CODE" maxlength="12">
+    <br>
+    <button class="gift-btn" id="giftBtn">REDEEM</button>
+    <div class="gift-msg" id="giftMsg"></div>
+  </div>
+  <div class="gift-history" id="giftHistoryWrap" style="display:none;">
+    <div class="gh-title" id="giftHistoryTitle">REDEEMED CODES</div>
+    <div id="giftHistoryList"></div>
+  </div>
+</div>
+
+<script>
+(function(){
+"use strict";
+
+try {
+
+/* ================================================================
+   I18N
+   ================================================================ */
+const LANG_KEY = "quietTrailsLang";
+let currentLang = null;
+try { currentLang = localStorage.getItem(LANG_KEY) || null; } catch(e){ currentLang = null; }
+
+const STRINGS = {
+  en: {
+    start: "START",
+    startNote: "For the best experience, the game will run in fullscreen and landscape after you tap the button.",
+    rotate: "Please rotate your device<br>to landscape to play",
+    steps: "STEPS",
+    menu: "Menu",
+    characters: "Characters",
+    shop: "Shop & Upgrades",
+    stats: "Stats",
+    settings: "Settings",
+    gift: "Gift Code",
+    mars: "Journey to Mars 🚀",
+    chooseWalker: "Choose your walker",
+    hiker: "Hiker", hikerDesc: "Steady & sure",
+    elder: "Elder", elderDesc: "Slow & wise",
+    traveler: "Traveler", travelerDesc: "Far from home",
+    casual: "Casual", casualDesc: "Just a stroll",
+    legs: "Leg Strength", legsDesc: "Walk a little faster",
+    stamina: "Stamina", staminaDesc: "Cover more ground per step",
+    gear: "Walking Gear", gearDesc: "Walk more efficiently",
+    luck: "Luck", luckDesc: "Chance of bonus coins",
+    bicycle: "BICYCLE", bicycleDesc: "Pedal faster than you can walk. Each tap pushes you further down the trail.",
+    car: "CAR", carDesc: "Far quicker than the bicycle. Cover long distances with every tap.",
+    spacecraft: "SPACECRAFT", spacecraftDesc: "A once-in-a-lifetime departure. Unlocks a journey to Mars.",
+    coins: "COINS",
+    buyCoins: "BUY — {cost} COINS",
+    locked: "LOCKED — Need {n} more coins",
+    owned: "OWNED — TAP TO USE",
+    inUse: "IN USE ✓",
+    unlocked: "UNLOCKED ✓",
+    max: "MAX",
+    lv: "Lv.",
+    maxed: "maxed",
+    totalSteps: "Total steps",
+    totalCoinsEarned: "Total coins earned",
+    coinsOnHand: "Coins on hand",
+    distanceWalked: "Distance walked",
+    currentSpeed: "Current speed",
+    currentCharacter: "Current character",
+    currentVehicle: "Current vehicle",
+    highestSteps: "Highest step count",
+    upgradesPurchased: "Upgrades purchased",
+    giftCodesUsed: "Gift codes used",
+    marsStatus: "Mars status",
+    timeWalking: "Time walking",
+    lockedStatus: "Locked",
+    spacecraftReady: "Spacecraft ready",
+    visited: "Visited",
+    masterVolume: "Master Volume",
+    music: "Music",
+    nature: "Nature",
+    footsteps: "Footsteps",
+    muteAll: "Mute all",
+    resetProgress: "Reset progress",
+    changeLanguage: "Change language",
+    resetConfirm: "Reset all progress? This cannot be undone.",
+    redeemGift: "REDEEM A GIFT",
+    giftDesc: "Enter your gift code below to claim a reward.<br>Each code can only be used once.",
+    enterCode: "ENTER CODE",
+    redeem: "REDEEM",
+    redeemedCodes: "REDEEMED CODES",
+    giftInvalid: "Invalid code ❌",
+    giftUsed: "This code has already been used.",
+    giftEmpty: "No code entered.",
+    giftSuccess: "🎉 {label}<small>+{coins} coins added.</small>",
+    giftLabel: "Special gift",
+    speedLabels: { driving:"driving", cycling:"cycling", leisurely:"leisurely", steady:"steady", brisk:"brisk", swift:"swift" },
+    discovered: "DISCOVERED",
+    coinFloat: "+{n} COINS",
+    luckyCoin: "+1 LUCKY COIN",
+    marsStepsToGo: "Mars · {n} steps to go",
+    returnToJourney: "RETURN TO JOURNEY",
+    npcGeneral: [
+      "Hello! You have quite a journey ahead.",
+      "I think the trail looks more beautiful than ever today.",
+      "Are you walking somewhere special too?",
+      "By the way... did you hear that bird?",
+      "This weather is perfect for a walk, isn't it?",
+      "I really love this path.",
+      "The sky is so bright today.",
+      "Sometimes you just have to walk and think about nothing.",
+      "Still walking? Then something ahead must be waiting for you.",
+      "Sometimes I think the trail chooses us, not the other way around.",
+    ],
+    npcWise: [
+      "If you're tired, don't rush. The trail isn't going anywhere.",
+      "Every step carries its own story.",
+      "Some paths must be walked slowly to see their beauty.",
+      "I've known these roads for years; they never feel the same twice.",
+      "The more I walk, the less I hurry.",
+    ],
+    npcCheerful: [
+      "What a lovely day for a walk!",
+      "I've been walking for three days and I still don't know where I am!",
+      "Let's race... just kidding, let's take it slow.",
+      "I feel great today, as if the weather knows it too.",
+      "You should go faster! ...Where? I don't know! ...Then why hurry? ...Good question.",
+    ],
+    npcCurious: [
+      "What do you think is beyond that mountain?",
+      "I'd love to know where this river begins.",
+      "Have you ever wondered where the path ends?",
+      "Do you ever talk to yourself? It's fine, I do too.",
+    ],
+    npcMysterious: [
+      "Don't miss the night here... the sky is extraordinary.",
+      "Some things are only seen by those who walk slowly.",
+      "I once saw something strange in this forest... maybe I'll tell you one day.",
+      "There's a sound from behind the trees... no, it's nothing. I think.",
+    ],
+    npcThoughtful: [
+      "If I were you, I'd rest by the river a little further ahead.",
+      "Sometimes the journey matters more than the destination.",
+      "I think everyone has a reason to walk.",
+    ],
+    npcBold: [
+      "I'm not afraid of any path!",
+      "The highest peak always has the best view.",
+      "One more step, then another... that's what gets you to the top.",
+    ],
+    npcWholesome: [
+      "Look at these flowers, how lovely they are.",
+      "I hope you have a good day.",
+      "I like to wish something good for everyone I meet.",
+      "Do you ever talk to yourself? Yes. That's good. I do too.",
+    ],
+    npcFox: [
+      "Hey traveler! Are you walking this much to escape something too?",
+      "I smell... the scent of an adventure.",
+      "Don't follow me, or you'll get lost. ...Or maybe you should come.",
+    ],
+    npcRobot: [
+      "Scan complete. One tired traveler detected... and much curiosity.",
+      "Your body temperature is normal. Energy level: decreasing. Recommendation: continue the journey.",
+      "Emotional error detected: longing. Analysis: normal.",
+    ],
+    npcAlien: [
+      "You came from Earth? Yes. Then I have an important question: is pizza still delicious there?",
+      "Where I'm from, distances are different. One of your steps is a hundred light-years.",
+      "Earth looks so small from space... but up close, it's big.",
+    ],
+    npcGhost: [
+      "Don't worry, I'm just passing by.",
+      "This forest has been here a long time... so have I.",
+      "I like the sound of your footsteps. It reminds me.",
+    ],
+    npcDragon: [
+      "Did you know my fire is still very small?",
+      "My wings are still small, but one day they'll be big.",
+      "Flying is hard... walking with you is easier.",
+    ],
+    npcOwl: [
+      "Hoo... do you like the night?",
+      "I see everything from above. You're small, but your journey is big.",
+    ],
+    leaveLines: [
+      "Alright, have a good trip.",
+      "See you somewhere else!",
+      "Take care, friend.",
+      "I hope you reach your destination.",
+    ],
+    discoveries: {
+      grass:"Rolling Hills", meadow:"A Wildflower Meadow", forest:"The Old Forest",
+      dirt:"A Quiet Dirt Road", rock:"A Rocky Ridge", bridge:"An Old Wooden Bridge",
+      lake:"A Still Lake", waterfall:"A Hidden Waterfall", autumn:"An Autumn Grove",
+      village:"A Distant Village", snow:"A Snowy Mountain Pass", cave:"A Narrow Canyon",
+    },
+    terrains: {
+      grass:"grass hills", meadow:"flowering meadow", forest:"forest trail",
+      dirt:"dirt path", rock:"rocky path", bridge:"wooden bridge", lake:"lakeside",
+      waterfall:"waterfall glen", autumn:"autumn grove", village:"village outskirts",
+      snow:"snowy pass", cave:"canyon path",
+    },
+    phases: {
+      dawn:"dawn", morning:"morning", day:"day", afternoon:"afternoon",
+      sunset:"sunset", dusk:"dusk", night:"night", "late night":"late night",
+    },
+  },
+  ko: {
+    start: "시작",
+    startNote: "최상의 경험을 위해 버튼을 누르면 전체 화면 및 가로 모드로 실행됩니다.",
+    rotate: "가로 모드로 기기를<br>돌려주세요",
+    steps: "걸음",
+    menu: "메뉴",
+    characters: "캐릭터",
+    shop: "상점 및 업그레이드",
+    stats: "통계",
+    settings: "설정",
+    gift: "기프트 코드",
+    mars: "화성 여행 🚀",
+    chooseWalker: "걷는 사람을 선택하세요",
+    hiker: "등산객", hikerDesc: "꾸준하고 확실함",
+    elder: "어르신", elderDesc: "느리지만 지혜로움",
+    traveler: "여행자", travelerDesc: "집에서 멀리 떠남",
+    casual: "산책자", casualDesc: "가볍게 산책",
+    legs: "다리 근력", legsDesc: "조금 더 빠르게 걷기",
+    stamina: "체력", staminaDesc: "한 걸음에 더 멀리 가기",
+    gear: "워킹 장비", gearDesc: "더 효율적으로 걷기",
+    luck: "행운", luckDesc: "보너스 코인 확률",
+    bicycle: "자전거", bicycleDesc: "걷는 것보다 빠르게 페달을 밟으세요. 탭할 때마다 더 멀리 나아갑니다.",
+    car: "자동차", carDesc: "자전거보다 훨씬 빠릅니다. 탭 한 번으로 먼 거리를 이동하세요.",
+    spacecraft: "우주선", spacecraftDesc: "일생일대의 출발. 화성 여행을 해금합니다.",
+    coins: "코인",
+    buyCoins: "구매 — {cost} 코인",
+    locked: "잠김 — {n} 코인 더 필요",
+    owned: "보유 중 — 탭하여 사용",
+    inUse: "사용 중 ✓",
+    unlocked: "해금됨 ✓",
+    max: "최대",
+    lv: "Lv.",
+    maxed: "최대",
+    totalSteps: "총 걸음 수",
+    totalCoinsEarned: "총 획득 코인",
+    coinsOnHand: "보유 코인",
+    distanceWalked: "걸은 거리",
+    currentSpeed: "현재 속도",
+    currentCharacter: "현재 캐릭터",
+    currentVehicle: "현재 탈것",
+    highestSteps: "최고 걸음 수",
+    upgradesPurchased: "구매한 업그레이드",
+    giftCodesUsed: "사용한 기프트 코드",
+    marsStatus: "화성 상태",
+    timeWalking: "걷는 시간",
+    lockedStatus: "잠김",
+    spacecraftReady: "우주선 준비 완료",
+    visited: "방문함",
+    masterVolume: "마스터 볼륨",
+    music: "음악",
+    nature: "자연",
+    footsteps: "발소리",
+    muteAll: "모두 음소거",
+    resetProgress: "진행 초기화",
+    changeLanguage: "언어 변경",
+    resetConfirm: "모든 진행을 초기화할까요? 되돌릴 수 없습니다.",
+    redeemGift: "기프트 교환",
+    giftDesc: "아래에 기프트 코드를 입력하여 보상을 받으세요.<br>각 코드는 한 번만 사용할 수 있습니다.",
+    enterCode: "코드 입력",
+    redeem: "교환",
+    redeemedCodes: "사용한 코드",
+    giftInvalid: "잘못된 코드 ❌",
+    giftUsed: "이미 사용된 코드입니다.",
+    giftEmpty: "코드를 입력하지 않았습니다.",
+    giftSuccess: "🎉 {label}<small>+{coins} 코인이 추가되었습니다.</small>",
+    giftLabel: "특별 선물",
+    speedLabels: { driving:"운전 중", cycling:"자전거 타는 중", leisurely:"여유롭게", steady:"꾸준히", brisk:"활기차게", swift:"빠르게" },
+    discovered: "발견",
+    coinFloat: "+{n} 코인",
+    luckyCoin: "+1 행운 코인",
+    marsStepsToGo: "화성 · {n} 걸음 남음",
+    returnToJourney: "여행으로 돌아가기",
+    npcGeneral: [
+      "안녕하세요! 앞으로 갈 길이 멀군요.",
+      "오늘 이 길이 유난히 아름다워 보여요.",
+      "당신도 어딘가 특별한 곳으로 가는 길인가요?",
+      "그런데... 방금 그 새 소리 들었나요?",
+      "이 날씨는 산책하기에 완벽하네요, 그렇죠?",
+      "저는 이 길을 정말 좋아해요.",
+      "오늘 하늘이 참 밝네요.",
+      "때로는 그냥 걸으면서 아무 생각도 하지 않아야 해요.",
+      "아직도 걷고 있나요? 그렇다면 앞에 뭔가 기다리고 있는 거예요.",
+      "가끔은 길이 우리를 선택하는 것 같아요, 반대가 아니라.",
+    ],
+    npcWise: [
+      "피곤하면 서두르지 마세요. 길은 도망가지 않아요.",
+      "모든 걸음에는 이야기가 담겨 있어요.",
+      "어떤 길은 천천히 걸어야 그 아름다움이 보여요.",
+      "저는 이 길들을 오래 알고 지냈지만, 결코 똑같지 않아요.",
+      "걸을수록 서두르지 않게 되네요.",
+    ],
+    npcCheerful: [
+      "산책하기에 정말 좋은 날이에요!",
+      "사흘째 걷고 있는데 아직도 어디인지 몰라요!",
+      "경주할까요? ...농담이에요, 천천히 가요.",
+      "오늘 기분이 정말 좋아요, 날씨도 아는 것 같아요.",
+      "더 빨리 가야 해요! ...어디로? 몰라요! ...그럼 왜 서둘러요? ...좋은 질문이네요.",
+    ],
+    npcCurious: [
+      "저 산 너머에 뭐가 있을 것 같아요?",
+      "이 강이 어디서 시작하는지 궁금해요.",
+      "길이 어디서 끝나는지 생각해 본 적 있나요?",
+      "혼잣말 자주 하나요? 괜찮아요, 저도 그래요.",
+    ],
+    npcMysterious: [
+      "여기서의 밤을 놓치지 마세요... 하늘이 정말 대단해요.",
+      "어떤 것들은 천천히 걷는 사람만 볼 수 있어요.",
+      "예전에 이 숲에서 이상한 걸 본 적이 있어요... 언젠가 알려줄게요.",
+      "나무 뒤에서 소리가 나요... 아니에요, 아무것도 아니에요. 아마도.",
+    ],
+    npcThoughtful: [
+      "제라면 조금 더 가서 강가에서 쉬겠어요.",
+      "때로는 목적지보다 여정이 더 중요해요.",
+      "모두 걷는 이유가 있는 것 같아요.",
+    ],
+    npcBold: [
+      "저는 어떤 길도 두렵지 않아요!",
+      "가장 높은 봉우리에는 항상 최고의 경치가 있어요.",
+      "한 걸음 더, 또 한 걸음... 그게 정상에 도달하게 해줘요.",
+    ],
+    npcWholesome: [
+      "이 꽃들 좀 봐요, 정말 예뻐요.",
+      "좋은 하루 보내길 바라요.",
+      "만나는 모든 사람에게 좋은 일을 빌어주고 싶어요.",
+      "혼잣말 자주 하나요? 네. 좋아요. 저도 그래요.",
+    ],
+    npcFox: [
+      "이봐요 여행자! 당신도 뭔가에서 도망치려고 이렇게 걷는 건가요?",
+      "냄새가 나요... 모험의 냄새가.",
+      "따라오지 마세요, 길을 잃을 거예요. ...아니면 오는 게 나을지도.",
+    ],
+    npcRobot: [
+      "스캔 완료. 지친 여행자 한 명 발견... 그리고 많은 호기심.",
+      "체온 정상. 에너지 수준: 감소 중. 권장 사항: 여정 계속.",
+      "감정 오류 감지: 그리움. 분석: 정상.",
+    ],
+    npcAlien: [
+      "지구에서 오셨나요? 네. 그럼 중요한 질문이 있어요: 거기서 피자 아직 맛있나요?",
+      "우리 고향에서는 거리가 달라요. 당신의 한 걸음이 백 광년이에요.",
+      "지구는 우주에서 아주 작아 보여요... 하지만 가까이서 보면 커요.",
+    ],
+    npcGhost: [
+      "걱정 마세요, 그냥 지나가는 거예요.",
+      "이 숲은 오래전부터 여기 있었어요... 저도 마찬가지고요.",
+      "당신의 발소리가 좋아요. 기억이 나요.",
+    ],
+    npcDragon: [
+      "제 불꽃이 아직 아주 작다는 거 알고 있었나요?",
+      "제 날개는 아직 작지만, 언젠가 커질 거예요.",
+      "나는 것은 힘들어요... 당신과 걷는 게 더 쉬워요.",
+    ],
+    npcOwl: [
+      "부엉... 밤을 좋아하나요?",
+      "저는 위에서 모든 걸 봐요. 당신은 작지만, 당신의 여정은 커요.",
+    ],
+    leaveLines: [
+      "그럼, 좋은 여행 되세요.",
+      "다른 곳에서 또 만나요!",
+      "몸조심하세요, 친구.",
+      "목적지에 잘 도착하길 바라요.",
+    ],
+    discoveries: {
+      grass:"구불구불한 언덕", meadow:"야생화 초원", forest:"오래된 숲",
+      dirt:"고요한 흙길", rock:"바위 능선", bridge:"오래된 나무 다리",
+      lake:"고요한 호수", waterfall:"숨겨진 폭포", autumn:"가을 숲",
+      village:"멀리 보이는 마을", snow:"눈 덮인 산길", cave:"좁은 협곡",
+    },
+    terrains: {
+      grass:"풀밭 언덕", meadow:"꽃밭 초원", forest:"숲길",
+      dirt:"흙길", rock:"바위길", bridge:"나무 다리", lake:"호숫가",
+      waterfall:"폭포 계곡", autumn:"가을 숲", village:"마을 외곽",
+      snow:"눈길", cave:"협곡 길",
+    },
+    phases: {
+      dawn:"새벽", morning:"아침", day:"낮", afternoon:"오후",
+      sunset:"일몰", dusk:"황혼", night:"밤", "late night":"늦은 밤",
+    },
+  },
+  fa: {
+    start: "شروع",
+    startNote: "برای تجربه‌ی بهتر، پس از لمس دکمه، بازی در حالت تمام‌صفحه و افقی اجرا می‌شود.",
+    rotate: "لطفاً دستگاه را<br>به حالت افقی بچرخانید",
+    steps: "قدم",
+    menu: "منو",
+    characters: "شخصیت‌ها",
+    shop: "فروشگاه و ارتقاها",
+    stats: "آمار",
+    settings: "تنظیمات",
+    gift: "کد هدیه",
+    mars: "سفر به مریخ 🚀",
+    chooseWalker: "راه‌رونده خود را انتخاب کنید",
+    hiker: "کوهنورد", hikerDesc: "پیوسته و مطمئن",
+    elder: "سالخورده", elderDesc: "آهسته و دانا",
+    traveler: "مسافر", travelerDesc: "دور از خانه",
+    casual: "قدم‌زن", casualDesc: "فقط یک گشت",
+    legs: "قدرت پا", legsDesc: "کمی سریع‌تر راه برو",
+    stamina: "استقامت", staminaDesc: "در هر قدم مسافت بیشتری طی کن",
+    gear: "تجهیزات راه‌پیمایی", gearDesc: "کارآمدتر راه برو",
+    luck: "شانس", luckDesc: "احتمال سکه‌ی پاداش",
+    bicycle: "دوچرخه", bicycleDesc: "سریع‌تر از پیاده‌روی رکاب بزن. هر لمس شما را جلوتر می‌برد.",
+    car: "خودرو", carDesc: "بسیار سریع‌تر از دوچرخه. با هر لمس مسافت زیادی را طی کنید.",
+    spacecraft: "فضاپیما", spacecraftDesc: "یک عزیمت یک‌بار در عمر. سفر به مریخ را باز می‌کند.",
+    coins: "سکه",
+    buyCoins: "خرید — {cost} سکه",
+    locked: "قفل — {n} سکه دیگر نیاز است",
+    owned: "در اختیار — برای استفاده لمس کنید",
+    inUse: "در حال استفاده ✓",
+    unlocked: "باز شد ✓",
+    max: "حداکثر",
+    lv: "سطح",
+    maxed: "حداکثر",
+    totalSteps: "مجموع قدم‌ها",
+    totalCoinsEarned: "مجموع سکه‌های کسب‌شده",
+    coinsOnHand: "سکه‌های موجود",
+    distanceWalked: "مسافت طی‌شده",
+    currentSpeed: "سرعت فعلی",
+    currentCharacter: "شخصیت فعلی",
+    currentVehicle: "وسیله‌ی فعلی",
+    highestSteps: "بیشترین تعداد قدم",
+    upgradesPurchased: "ارتقاهای خریداری‌شده",
+    giftCodesUsed: "کدهای هدیه‌ی استفاده‌شده",
+    marsStatus: "وضعیت مریخ",
+    timeWalking: "زمان راه‌رفتن",
+    lockedStatus: "قفل",
+    spacecraftReady: "فضاپیما آماده است",
+    visited: "بازدید شده",
+    masterVolume: "صدای اصلی",
+    music: "موسیقی",
+    nature: "طبیعت",
+    footsteps: "صدای قدم‌ها",
+    muteAll: "بی‌صدا کردن همه",
+    resetProgress: "بازنشانی پیشرفت",
+    changeLanguage: "تغییر زبان",
+    resetConfirm: "همه‌ی پیشرفت بازنشانی شود؟ این کار برگشت‌پذیر نیست.",
+    redeemGift: "دریافت هدیه",
+    giftDesc: "کد هدیه‌ی خود را در زیر وارد کنید تا پاداش بگیرید.<br>هر کد فقط یک بار قابل استفاده است.",
+    enterCode: "کد را وارد کنید",
+    redeem: "دریافت",
+    redeemedCodes: "کدهای دریافت‌شده",
+    giftInvalid: "کد نامعتبر است ❌",
+    giftUsed: "این کد قبلاً استفاده شده است.",
+    giftEmpty: "کدی وارد نشده است.",
+    giftSuccess: "🎉 {label}<small>+{coins} سکه اضافه شد.</small>",
+    giftLabel: "هدیه‌ی ویژه",
+    speedLabels: { driving:"در حال رانندگی", cycling:"در حال دوچرخه‌سواری", leisurely:"آهسته", steady:"پیوسته", brisk:"چابک", swift:"سریع" },
+    discovered: "کشف شد",
+    coinFloat: "+{n} سکه",
+    luckyCoin: "+۱ سکه‌ی شانس",
+    marsStepsToGo: "مریخ · {n} قدم مانده",
+    returnToJourney: "بازگشت به سفر",
+    npcGeneral: [
+      "سلام! راه زیادی در پیش داری.",
+      "فکر می‌کنم امروز این مسیر از همیشه قشنگ‌تره.",
+      "تو هم برای رسیدن به جایی خاص داری راه می‌ری؟",
+      "راستی... تو هم صدای اون پرنده رو شنیدی؟",
+      "این هوا برای پیاده‌روی عالیه، نه؟",
+      "من این مسیر رو خیلی دوست دارم.",
+      "چقدر آسمون امروز روشنه.",
+      "گاهی فقط باید راه رفت و به هیچی فکر نکرد.",
+      "هنوز داری راه می‌ری؟ پس هنوز یه چیزی اون جلو منتظرته.",
+      "بعضی وقتا فکر می‌کنم مسیر خودش داره ما رو انتخاب می‌کنه، نه برعکس.",
+    ],
+    npcWise: [
+      "اگه خسته‌ای، عجله نکن. مسیر قرار نیست فرار کنه.",
+      "هر قدم یه داستان با خودش داره.",
+      "بعضی مسیرها رو باید آروم رفت تا قشنگیشون رو دید.",
+      "من سال‌هاست این جاده‌ها رو می‌شناسم؛ هیچ‌وقت تکراری نمی‌شن.",
+      "هرچی بیشتر راه می‌رم، کمتر عجله دارم.",
+    ],
+    npcCheerful: [
+      "وای چه روز قشنگی برای قدم زدنه!",
+      "من سه روزه دارم راه می‌رم و هنوز نمی‌دونم کجام!",
+      "بیا با هم یه مسابقه بذاریم... شوخی کردم، بریم آروم آروم.",
+      "امروز حالم خیلی خوبه، انگار هوا هم می‌دونه.",
+      "باید سریع‌تر بری! ...کجا؟ نمی‌دونم! ...پس چرا عجله داری؟ ...سؤال خوبیه.",
+    ],
+    npcCurious: [
+      "فکر می‌کنی پشت اون کوه چی باشه؟",
+      "دوست دارم بدونم این رودخونه از کجا شروع شده.",
+      "هیچ‌وقت به این فکر کردی که مسیر کجا تموم می‌شه؟",
+      "تو هم گاهی با خودت حرف می‌زنی؟ خوبه، منم همینطورم.",
+    ],
+    npcMysterious: [
+      "شب اینجا رو از دست نده... آسمونش فوق‌العاده‌ست.",
+      "بعضی چیزها رو فقط کسایی می‌بینن که آروم راه می‌رن.",
+      "من یه بار یه چیز عجیب توی این جنگل دیدم... شاید یه روز بهت بگم.",
+      "یه صدایی از پشت درخت‌ها میاد... نه، چیزی نیست. فکر کنم.",
+    ],
+    npcThoughtful: [
+      "اگر جای تو بودم، کمی جلوتر کنار رودخانه استراحت می‌کردم.",
+      "گاهی مسیر مهم‌تر از مقصده.",
+      "فکر می‌کنم هرکسی یه دلیل برای راه رفتن داره.",
+    ],
+    npcBold: [
+      "من از هیچ مسیری نمی‌ترسم!",
+      "بلندترین قله همیشه بهترین منظره رو داره.",
+      "یه قدم دیگه، بعد یکی دیگه... همینه که به قله می‌رسونه.",
+    ],
+    npcWholesome: [
+      "این گل‌ها رو ببین، چقدر قشنگن.",
+      "امیدوارم روز خوبی داشته باشی.",
+      "دوست دارم برای هرکسی که می‌بینم آرزوی خوبی کنم.",
+      "تو هم گاهی با خودت حرف می‌زنی؟ آره. خوبه. منم همین کارو می‌کنم.",
+    ],
+    npcFox: [
+      "هی مسافر! تو هم برای فرار از چیزی این‌قدر راه می‌ری؟",
+      "بو می‌کشم... بوی یه ماجراجویی میاد.",
+      "دنبالم نیا، وگرنه گم می‌شی. ...یا شایدم بهتره بیای.",
+    ],
+    npcRobot: [
+      "اسکن کامل شد. یک مسافر خسته پیدا شد... و کنجکاوی زیاد.",
+      "دمای بدنت طبیعیه. سطح انرژی: رو به کاهش. پیشنهاد: ادامه‌ی مسیر.",
+      "خطای عاطفی شناسایی شد: دلتنگی. تحلیل: طبیعی است.",
+    ],
+    npcAlien: [
+      "تو از زمین اومدی؟ آره. پس یه سؤال مهم دارم: اونجا هنوز پیتزا خوشمزه‌ست؟",
+      "پیش ما، فاصله‌ها فرق دارن. یه قدم شما، صد سال نوریه.",
+      "زمین از فضا خیلی کوچیک به‌نظر می‌رسه... ولی از نزدیک، بزرگه.",
+    ],
+    npcGhost: [
+      "نگران نباش، من فقط از کنارت رد می‌شم.",
+      "این جنگل خیلی وقته اینجاست... من هم همینطور.",
+      "صدای قدم‌هات رو دوست دارم. یادم میاد.",
+    ],
+    npcDragon: [
+      "می‌دونستی آتیش من هنوز خیلی کوچیکه؟",
+      "بال‌هام هنوز کوچیکن، ولی روزی بزرگ می‌شن.",
+      "پرواز سخته... راه رفتن باهات راحت‌تره.",
+    ],
+    npcOwl: [
+      "هوو... تو شب رو دوست داری؟",
+      "من همه‌چیز رو از بالا می‌بینم. تو کوچیکی، ولی مسیرت بزرگه.",
+    ],
+    leaveLines: [
+      "باشه، سفر خوبی داشته باشی.",
+      "می‌بینمت یه جای دیگه!",
+      "مراقب خودت باش، رفیق.",
+      "امیدوارم به مقصدت برسی.",
+    ],
+    discoveries: {
+      grass:"تپه‌های پیچ‌درپیچ", meadow:"چمنزار گل", forest:"جنگل کهن",
+      dirt:"جاده‌ی خاکی خلوت", rock:"یال سنگی", bridge:"پل چوبی قدیمی",
+      lake:"دریاچه‌ی آرام", waterfall:"آبشار پنهان", autumn:"بیشه‌ی پاییزی",
+      village:"روستای دور", snow:"گردنه‌ی برفی", cave:"دره‌ی باریک",
+    },
+    terrains: {
+      grass:"تپه‌های چمنی", meadow:"چمنزار گل", forest:"مسیر جنگلی",
+      dirt:"مسیر خاکی", rock:"مسیر سنگی", bridge:"پل چوبی", lake:"کنار دریاچه",
+      waterfall:"دره‌ی آبشار", autumn:"بیشه‌ی پاییزی", village:"حاشیه‌ی روستا",
+      snow:"گردنه‌ی برفی", cave:"مسیر دره",
+    },
+    phases: {
+      dawn:"سپیده‌دم", morning:"صبح", day:"روز", afternoon:"بعدازظهر",
+      sunset:"غروب", dusk:"شفق", night:"شب", "late night":"آخر شب",
+    },
+  }
+};
+
+function t(key, vars) {
+  const lang = currentLang || "en";
+  const dict = STRINGS[lang] || STRINGS.en;
+  let str = dict[key];
+  if (str === undefined) str = STRINGS.en[key];
+  if (str === undefined) return key;
+  if (vars) {
+    Object.keys(vars).forEach(k => {
+      str = str.replace(new RegExp("\\{" + k + "\\}", "g"), vars[k]);
+    });
+  }
+  return str;
+}
+
+/* ================================================================
+   STATE
+   ================================================================ */
+const SAVE_KEY = "quietTrailsSave_v3";
+const CHAR_DEFS = [
+  {id:"hiker", nameKey:"hiker", descKey:"hikerDesc", stick:true, pack:true, coat:false, hat:true, speedMul:1.0},
+  {id:"elder", nameKey:"elder", descKey:"elderDesc", stick:true, pack:false, coat:true, hat:false, speedMul:0.76},
+  {id:"traveler", nameKey:"traveler", descKey:"travelerDesc", stick:false, pack:true, coat:false, hat:false, speedMul:1.05},
+  {id:"casual", nameKey:"casual", descKey:"casualDesc", stick:false, pack:false, coat:false, hat:false, speedMul:1.0},
+];
+const UPGRADES = [
+  {id:"legs", nameKey:"legs", descKey:"legsDesc", icon:"◧", effect:l=>`+${(l*8)}% speed`},
+  {id:"stamina", nameKey:"stamina", descKey:"staminaDesc", icon:"◨", effect:l=>`+${(l*4.5).toFixed(1)}% distance`},
+  {id:"gear", nameKey:"gear", descKey:"gearDesc", icon:"◩", effect:l=>`+${(l*7)}% distance`},
+  {id:"luck", nameKey:"luck", descKey:"luckDesc", icon:"◪", effect:l=>`${(l*3.5).toFixed(1)}% bonus chance`},
+];
+const MAX_LEVEL = 5;
+function upgradeCost(level){ return 50 * Math.pow(2, level); }
+const COIN_INTERVAL = 10;
+const COINS_PER_INTERVAL = 4;
+const BICYCLE_COST = 400;
+const CAR_COST = 650;
+const SPACECRAFT_COST = 1000;
+const MARS_END_STEPS = 60;
+const VEHICLES = {
+  walk:    {icon:"🚶", speedMul:1.0,  distMul:1.0},
+  bicycle: {icon:"🚲", speedMul:1.9,  distMul:1.6},
+  car:     {icon:"🚗", speedMul:3.4,  distMul:2.6},
+};
+
+const GIFT_CODES = {
+  "1234": { coins: 100000 },
+};
+
+function defaultState(){
+  return {
+    totalSteps:0, coins:0, totalCoinsEarned:0,
+    character:"hiker",
+    upgrades:{legs:0, stamina:0, gear:0, luck:0},
+    highestSteps:0, playSeconds:0,
+    volMaster:1, volMusic:0.6, volNature:1, volFootsteps:1, muteAll:false,
+    spacecraft:false, marsCompletions:0,
+    bicycleOwned:false, carOwned:false, vehicle:"walk",
+    redeemedCodes:[],
+  };
+}
+let S = defaultState();
+try {
+  const raw = localStorage.getItem(SAVE_KEY);
+  if(raw){
+    const parsed = JSON.parse(raw);
+    S = Object.assign(defaultState(), parsed, {upgrades: Object.assign({legs:0,stamina:0,gear:0,luck:0}, parsed.upgrades||{})});
+    if(!Array.isArray(S.redeemedCodes)) S.redeemedCodes = [];
+  }
+} catch(e){ S = defaultState(); }
+function saveState(){ try{ localStorage.setItem(SAVE_KEY, JSON.stringify(S)); }catch(e){} }
+setInterval(()=>{ S.playSeconds++; saveState(); }, 1000);
+
+function currentCharDef(){ return CHAR_DEFS.find(c=>c.id===S.character) || CHAR_DEFS[0]; }
+function currentVehicle(){ return VEHICLES[S.vehicle] || VEHICLES.walk; }
+function stepDistance(){
+  return 0.76 * (1 + S.upgrades.gear*0.07 + S.upgrades.stamina*0.045) * currentVehicle().distMul;
+}
+function stepDurationMs(){
+  const base = 620 / (currentCharDef().speedMul * currentVehicle().speedMul);
+  const reduced = base * (1 - S.upgrades.legs*0.08);
+  return Math.max(90, reduced);
+}
+function speedLabel(){
+  if(S.vehicle==="car") return t("speedLabels").driving;
+  if(S.vehicle==="bicycle") return t("speedLabels").cycling;
+  const d = stepDurationMs();
+  if(d>560) return t("speedLabels").leisurely;
+  if(d>460) return t("speedLabels").steady;
+  if(d>360) return t("speedLabels").brisk;
+  return t("speedLabels").swift;
+}
+function cycleVehicle(){
+  const order = ["walk"];
+  if(S.bicycleOwned) order.push("bicycle");
+  if(S.carOwned) order.push("car");
+  const idx = order.indexOf(S.vehicle);
+  S.vehicle = order[(idx+1)%order.length];
+  saveState(); updateHud();
+}
+function upgradesPurchasedCount(){
+  return S.upgrades.legs + S.upgrades.stamina + S.upgrades.gear + S.upgrades.luck;
+}
+
+let mode = 'earth';
+let marsProgress = 0;
+let marsScrollX = 0;
+let launchStart = 0;
+let endingStart = 0;
+
+/* ================================================================
+   CANVAS
+   ================================================================ */
+const canvas = document.getElementById("scene");
+const ctx = canvas.getContext("2d");
+let W=0,H=0,DPR=1;
+function resize(){
+  DPR = Math.min(window.devicePixelRatio||1, 2);
+  W = window.innerWidth; H = window.innerHeight;
+  canvas.width = W*DPR; canvas.height = H*DPR;
+  canvas.style.width = W+"px"; canvas.style.height = H+"px";
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+}
+window.addEventListener("resize", resize);
+resize();
+
+function checkOrientation(){
+  const portrait = window.innerHeight > window.innerWidth;
+  const isTouch = ('ontouchstart' in window) || navigator.maxTouchPoints>0;
+  document.getElementById("rotatePrompt").classList.toggle("show", portrait && isTouch);
+}
+window.addEventListener("resize", checkOrientation);
+window.addEventListener("orientationchange", checkOrientation);
+checkOrientation();
+
+function isFullscreen(){
+  return !!(document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || document.msFullscreenElement);
+}
+async function enterFullscreen(){
+  const el = document.documentElement;
+  try{
+    if(el.requestFullscreen) await el.requestFullscreen({ navigationUI: "hide" });
+    else if(el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+    else if(el.mozRequestFullScreen) el.mozRequestFullScreen();
+    else if(el.msRequestFullscreen) el.msRequestFullscreen();
+  }catch(e){}
+  try{
+    if(screen.orientation && screen.orientation.lock){
+      await screen.orientation.lock("landscape");
+    }
+  }catch(e){}
+}
+async function exitFullscreen(){
+  try{
+    if(document.exitFullscreen) await document.exitFullscreen();
+    else if(document.webkitExitFullscreen) document.webkitExitFullscreen();
+    else if(document.mozCancelFullScreen) document.mozCancelFullScreen();
+    else if(document.msExitFullscreen) document.msExitFullscreen();
+  }catch(e){}
+}
+async function toggleFullscreen(){
+  if(isFullscreen()) await exitFullscreen();
+  else await enterFullscreen();
+}
+
+/* ================================================================
+   HELPERS
+   ================================================================ */
+function lerp(a,b,t){ return a+(b-a)*t; }
+function clamp(v,a,b){ return Math.max(a,Math.min(b,v)); }
+function hexToRgb(h){ h=h.replace("#",""); return [parseInt(h.substr(0,2),16),parseInt(h.substr(2,2),16),parseInt(h.substr(4,2),16)]; }
+function rgbToCss(r,g,b,a){ return a===undefined?`rgb(${r|0},${g|0},${b|0})`:`rgba(${r|0},${g|0},${b|0},${a})`; }
+function lerpColor(c1,c2,t,a){ const x=hexToRgb(c1), y=hexToRgb(c2); return rgbToCss(lerp(x[0],y[0],t), lerp(x[1],y[1],t), lerp(x[2],y[2],t), a); }
+function mulberry32(seed){
+  return function(){ let t = seed += 0x6D2B79F5; t = Math.imul(t ^ t >>> 15, t | 1); t ^= t + Math.imul(t ^ t >>> 7, t | 61); return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+}
+
+/* ================================================================
+   DAY CYCLE
+   ================================================================ */
+const CYCLE_STEPS = 480;
+const PHASES = [
+  {t:0.00, name:"dawn",      sky:["#2c2145","#7a5772","#e79f80"], sun:"#ffd9a0", mtn:"#241b34", mtn2:"#3a2c47", cloud:"#7a6a8a", star:0.1,  fog:0.5},
+  {t:0.10, name:"morning",   sky:["#4d7cae","#93bcda","#eddcb8"], sun:"#fff3cc", mtn:"#3b5872", mtn2:"#57748c", cloud:"#f3ece0", star:0,    fog:0.45},
+  {t:0.30, name:"day",       sky:["#5296cf","#94c8e9","#e3f4f6"], sun:"#fffae2", mtn:"#4d7186", mtn2:"#6f93a6", cloud:"#ffffff", star:0,    fog:0.12},
+  {t:0.50, name:"afternoon", sky:["#5f96c2","#9cc4dd","#f2e9c9"], sun:"#ffefb2", mtn:"#4f6f85", mtn2:"#7091a4", cloud:"#fff7e6", star:0,    fog:0.14},
+  {t:0.63, name:"sunset",    sky:["#3d3159","#a1526b","#f2984f"], sun:"#ffb56b", mtn:"#2c2340", mtn2:"#463656", cloud:"#f2a86a", star:0.05, fog:0.28},
+  {t:0.74, name:"dusk",      sky:["#221a37","#4a3457","#8b5c60"], sun:"#f0895a", mtn:"#1c1728", mtn2:"#2d2339", cloud:"#6a5372", star:0.45, fog:0.4},
+  {t:0.84, name:"night",     sky:["#070914","#101830","#242f4a"], sun:"#dde5f5", mtn:"#0c0e18", mtn2:"#151a28", cloud:"#232c44", star:1,    fog:0.4},
+  {t:0.96, name:"late night",sky:["#04060d","#0a0d1b","#1a2335"], sun:"#cdd8ee", mtn:"#08090f", mtn2:"#10131e", cloud:"#161d2e", star:0.85, fog:0.35},
+  {t:1.00, name:"dawn",      sky:["#2c2145","#7a5772","#e79f80"], sun:"#ffd9a0", mtn:"#241b34", mtn2:"#3a2c47", cloud:"#7a6a8a", star:0.1,  fog:0.5},
+];
+function getPhase(cyclePos){
+  for(let i=0;i<PHASES.length-1;i++){
+    if(cyclePos>=PHASES[i].t && cyclePos<=PHASES[i+1].t){
+      const span = PHASES[i+1].t - PHASES[i].t;
+      const local = span>0 ? (cyclePos-PHASES[i].t)/span : 0;
+      return {a:PHASES[i], b:PHASES[i+1], t:local};
+    }
+  }
+  return {a:PHASES[0], b:PHASES[0], t:0};
+}
+
+/* ================================================================
+   TERRAIN
+   ================================================================ */
+const TERRAINS = [
+  {id:"grass",   label:"grass",    ground:"#3c4d31", ground2:"#293722", trees:"pine",  flowers:true,  discover:"grass"},
+  {id:"meadow",  label:"meadow",   ground:"#43512f", ground2:"#2c3720", trees:"pine",  flowers:true,  discover:"meadow"},
+  {id:"forest",  label:"forest",   ground:"#31402a", ground2:"#22301c", trees:"pine",  dense:true,    discover:"forest"},
+  {id:"dirt",    label:"dirt",     ground:"#5a4630", ground2:"#42321e", trees:"sparse",hills:true,    discover:"dirt"},
+  {id:"rock",    label:"rock",     ground:"#5c5a55", ground2:"#403e3a", rocky:true,                    discover:"rock"},
+  {id:"bridge",  label:"bridge",   ground:"#6b4a30", ground2:"#4a3220", bridge:true, water:true,      discover:"bridge"},
+  {id:"lake",    label:"lake",     ground:"#3a4a38", ground2:"#26331f", water:true, trees:"sparse",   discover:"lake"},
+  {id:"waterfall",label:"waterfall",ground:"#354a34", ground2:"#243420", waterfall:true, trees:"pine", discover:"waterfall"},
+  {id:"autumn",  label:"autumn",   ground:"#5e4a2c", ground2:"#40311d", trees:"pine", autumn:true,    discover:"autumn"},
+  {id:"village", label:"village",  ground:"#48462f", ground2:"#302e1e", village:true,                discover:"village"},
+  {id:"snow",    label:"snow",     ground:"#dfe6ec", ground2:"#b9c6d1", trees:"pine", snow:true,      discover:"snow"},
+  {id:"cave",    label:"cave",     ground:"#4a4038", ground2:"#332b26", rocky:true, canyon:true,      discover:"cave"},
+];
+const TERRAIN_SPAN = 130;
+function getTerrain(totalSteps){ return TERRAINS[Math.floor(totalSteps / TERRAIN_SPAN) % TERRAINS.length]; }
+let lastTerrainId = null;
+function checkDiscovery(){
+  const terr = getTerrain(S.totalSteps);
+  if(terr.id !== lastTerrainId){
+    lastTerrainId = terr.id;
+    if(S.totalSteps>0) showDiscoveryToast(t("discoveries")[terr.discover] || terr.discover);
+  }
+}
+function showDiscoveryToast(name){
+  const wrap = document.getElementById("toastWrap");
+  const el = document.createElement("div");
+  el.className = "discoveryToast";
+  el.innerHTML = `<div class="dt-label">${t("discovered")}</div><div class="dt-name">${name}</div>`;
+  wrap.appendChild(el);
+  setTimeout(()=>el.remove(), 4300);
+}
+
+/* ================================================================
+   WALK
+   ================================================================ */
+let scrollX = S.totalSteps * stepDistance() * 26;
+let stepStartScroll = scrollX, stepTargetScroll = scrollX;
+let stepping = false, stepQueue = 0, stepPhase = 0;
+let currentStepDur = stepDurationMs();
+function pxPerMeter(){ return 26; }
+
+function queueStep(){
+  if(mode==='launch' || mode==='ending') return;
+  stepQueue++;
+  if(!stepping) advanceStep();
+}
+function advanceStep(){
+  if(stepQueue<=0){ stepping=false; return; }
+  stepQueue--; stepping = true; stepPhase = 0;
+  currentStepDur = stepDurationMs();
+  stepStartScroll = (mode==='mars') ? marsScrollX : scrollX;
+  const meters = stepDistance();
+  const target = stepStartScroll + meters*pxPerMeter();
+  stepTargetScroll = target;
+
+  if(mode==='mars'){
+    marsProgress++;
+    playFootstep('rock');
+  } else {
+    S.totalSteps++;
+    if(S.totalSteps > S.highestSteps) S.highestSteps = S.totalSteps;
+    if(S.totalSteps % COIN_INTERVAL === 0){ S.coins+=COINS_PER_INTERVAL; S.totalCoinsEarned+=COINS_PER_INTERVAL; showCoinFloat(); }
+    if(S.upgrades.luck>0 && Math.random() < S.upgrades.luck*0.03){ S.coins++; S.totalCoinsEarned++; showCoinFloat(true); }
+    playFootstep(getTerrain(S.totalSteps).id);
+    if(isRaining()) noiseBurst(0.08, 3200, 0.02, "highpass", footstepGain);
+    checkDiscovery();
+    saveState();
+  }
+  updateHud();
+
+  if(mode==='mars' && marsProgress>=MARS_END_STEPS){
+    setTimeout(startEnding, 260);
+  }
+}
+function showCoinFloat(bonus){
+  const wrap = document.getElementById("toastWrap");
+  const el = document.createElement("div");
+  el.className = "coinFloat";
+  el.textContent = bonus ? t("luckyCoin") : t("coinFloat", {n: COINS_PER_INTERVAL});
+  wrap.appendChild(el);
+  setTimeout(()=>el.remove(), 1700);
+}
+
+/* ================================================================
+   INPUT
+   ================================================================ */
+const tapLayer = document.getElementById("tapLayer");
+let lastTapTime = 0;
+tapLayer.addEventListener("pointerdown", (e)=>{
+  e.preventDefault();
+  const now = performance.now();
+  if(now - lastTapTime < 90) return;
+  lastTapTime = now;
+  if(anyScreenOpen()) return;
+  if(!startOverlayHidden) return;
+  if(document.getElementById("rotatePrompt").classList.contains("show")) return;
+  queueStep();
+}, {passive:false});
+
+/* ================================================================
+   PARTICLES
+   ================================================================ */
+let fireflies = [], butterflies = [], leaves = [], birds = [], shootingStars = [], clouds = null;
+function initFireflies(){
+  fireflies = [];
+  for(let i=0;i<14;i++){
+    fireflies.push({x:Math.random()*W, y:H*0.5+Math.random()*H*0.35, phase:Math.random()*10, spd:0.15+Math.random()*0.25});
+  }
+}
+function initClouds(seed){
+  const rnd = mulberry32(seed);
+  const arr=[];
+  for(let i=0;i<10;i++) arr.push({wx: i*620 + rnd()*300, y: 40+rnd()*H*0.28, s: 0.6+rnd()*1.1, speed: 6+rnd()*10});
+  return arr;
+}
+clouds = initClouds(5);
+initFireflies();
+
+/* ================================================================
+   WEATHER
+   ================================================================ */
+const WEATHERS = ["clear","cloudy","rain","fog","windy"];
+let weather = "clear", weatherTarget = "clear", weatherMix = 1, rainDrops = [];
+setInterval(()=>{
+  if(mode!=='earth') return;
+  if(Math.random()<0.35){
+    const terr = getTerrain(S.totalSteps);
+    let pool = WEATHERS.slice();
+    if(terr.snow) pool = ["clear","cloudy","windy","fog"];
+    weatherTarget = pool[Math.floor(Math.random()*pool.length)];
+    weatherMix = 0;
+  }
+}, 26000);
+function updateWeather(dt){
+  if(weatherTarget!==weather && weatherMix<1){
+    weatherMix += dt/4000;
+    if(weatherMix>=1){ weatherMix=1; weather=weatherTarget; }
+  }
+}
+function drawWeather(dt){
+  const amt = weatherMix>=1 ? 1 : weatherMix;
+  if((weather==="rain"||weatherTarget==="rain") ){
+    const alpha = weatherTarget==="rain" ? amt : (1-amt);
+    if(alpha>0.02){
+      if(Math.random()<0.9) rainDrops.push({x:Math.random()*W, y:-5, sp:9+Math.random()*4});
+      rainDrops.forEach(r=>{ r.y += r.sp*dt/16; r.x -= 1.5*dt/16; });
+      rainDrops = rainDrops.filter(r=>r.y<H);
+      ctx.strokeStyle = `rgba(200,215,235,${0.35*alpha})`; ctx.lineWidth=1;
+      rainDrops.forEach(r=>{ ctx.beginPath(); ctx.moveTo(r.x,r.y); ctx.lineTo(r.x-3,r.y+9); ctx.stroke(); });
+    }
+  } else { rainDrops.length=0; }
+  if(weather==="fog"||weatherTarget==="fog"){
+    const alpha = weatherTarget==="fog" ? amt : (1-amt);
+    ctx.fillStyle = `rgba(210,218,230,${0.16*alpha})`;
+    ctx.fillRect(0,H*0.4,W,H*0.5);
+  }
+}
+function isRaining(){ return weather==="rain" && weatherMix>=1; }
+
+/* ================================================================
+   WILDLIFE
+   ================================================================ */
+let critters = [];
+function maybeSpawnCritter(isDay, isNight){
+  if(critters.length>0) return;
+  if(Math.random()>0.006) return;
+  const dayKinds = ["rabbit","deer"];
+  const nightKinds = ["fox"];
+  const kind = isNight ? nightKinds[0] : dayKinds[Math.floor(Math.random()*dayKinds.length)];
+  if(isNight && Math.random()>0.5) return;
+  const dir = Math.random()<0.5? 1:-1;
+  critters.push({kind, x: dir>0?-30:W+30, y:H*0.79+Math.random()*10, dir, t:0});
+}
+function updateDrawCritters(dt){
+  critters.forEach(c=>{ c.t+=dt/1000; c.x += c.dir*36*dt/1000; });
+  critters = critters.filter(c=>c.x>-60 && c.x<W+60);
+  critters.forEach(c=>{
+    ctx.save(); ctx.translate(c.x,c.y); ctx.scale(c.dir,1);
+    ctx.fillStyle = "rgba(20,16,16,0.7)";
+    const hop = Math.abs(Math.sin(c.t*8))*4;
+    if(c.kind==="rabbit"){
+      ctx.beginPath(); ctx.ellipse(0,-6-hop,9,6,0,0,Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(8,-14-hop,2.2,6,0.3,0,Math.PI*2); ctx.fill();
+    } else if(c.kind==="deer"){
+      ctx.fillRect(-10,-22,20,12);
+      ctx.fillRect(-12,-12,3,14); ctx.fillRect(8,-12,3,14);
+      ctx.beginPath(); ctx.arc(12,-24,5,0,Math.PI*2); ctx.fill();
+    } else {
+      ctx.beginPath(); ctx.ellipse(0,-8,11,6,0,0,Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(9,-10); ctx.lineTo(16,-6); ctx.lineTo(9,-4); ctx.closePath(); ctx.fill();
+    }
+    ctx.restore();
+  });
+}
+
+/* ================================================================
+   NPCs
+   ================================================================ */
+const NPC_DEFS = [
+  {kind:"human", hat:"bucket", stick:false, pack:false, coat:true, prop:"rod", tone:"wise"},
+  {kind:"human", hat:false, stick:false, pack:true, coat:false, prop:false, tone:"cheerful"},
+  {kind:"human", hat:"shawl", stick:true, pack:false, coat:true, prop:false, tone:"wise"},
+  {kind:"human", hat:false, stick:true, pack:true, coat:false, prop:"rope", tone:"bold"},
+  {kind:"human", hat:"cap", stick:false, pack:true, coat:false, prop:"camera", tone:"curious"},
+  {kind:"human", hat:"widebrim", stick:false, pack:true, coat:true, prop:false, tone:"wise"},
+  {kind:"human", hat:false, stick:false, pack:true, coat:false, prop:false, tone:"cheerful"},
+  {kind:"human", hat:"beret", stick:false, pack:false, coat:false, prop:"easel", tone:"thoughtful"},
+  {kind:"human", hat:"widebrim", stick:true, pack:false, coat:true, prop:false, tone:"wise"},
+  {kind:"human", hat:"cap", stick:true, pack:true, coat:false, prop:"map", tone:"bold"},
+  {kind:"human", hat:false, stick:false, pack:false, coat:false, prop:"guitar", tone:"cheerful"},
+  {kind:"human", hat:"widebrim", stick:false, pack:false, coat:false, prop:"basket", tone:"wholesome"},
+  {kind:"human", hat:false, stick:false, pack:true, coat:true, prop:"tablet", tone:"curious"},
+  {kind:"human", hat:"cap", stick:false, pack:false, coat:false, prop:"bike", tone:"cheerful"},
+  {kind:"human", hat:"widebrim", stick:true, pack:true, coat:false, prop:false, tone:"bold"},
+  {kind:"human", hat:false, stick:false, pack:true, coat:false, prop:"dog", tone:"wholesome"},
+  {kind:"human", hat:"cap", stick:false, pack:true, coat:false, prop:"binoculars", tone:"curious"},
+  {kind:"human", hat:false, stick:true, pack:false, coat:true, prop:"lantern", tone:"mysterious"},
+  {kind:"human", hat:false, stick:false, pack:true, coat:false, prop:false, tone:"cheerful"},
+  {kind:"human", hat:false, stick:false, pack:false, coat:false, prop:"flowers", tone:"wholesome"},
+  {kind:"human", hat:"widebrim", stick:true, pack:true, coat:true, prop:false, tone:"mysterious"},
+  {kind:"human", hat:"hood", stick:true, pack:true, coat:true, prop:false, tone:"wise"},
+  {kind:"human", hat:false, stick:true, pack:false, coat:false, prop:false, tone:"thoughtful"},
+  {kind:"human", hat:"cap", stick:false, pack:false, coat:false, prop:"guitar", tone:"cheerful"},
+  {kind:"human", hat:"widebrim", stick:true, pack:false, coat:true, prop:false, tone:"mysterious"},
+  {kind:"human", hat:"cap", stick:false, pack:true, coat:false, prop:"binoculars", tone:"curious"},
+  {kind:"human", hat:false, stick:false, pack:true, coat:false, prop:"map", tone:"thoughtful"},
+  {kind:"human", hat:false, stick:true, pack:false, coat:true, prop:false, tone:"wise"},
+  {kind:"human", hat:"hood", stick:false, pack:false, coat:true, prop:false, tone:"mysterious"},
+  {kind:"human", hat:false, stick:false, pack:true, coat:false, prop:false, tone:"cheerful"},
+  {kind:"fox", tone:"mysterious", color:"#c1602f"},
+  {kind:"rabbit", tone:"wholesome", color:"#cdbfa8"},
+  {kind:"deer", tone:"thoughtful", color:"#8a6a45"},
+  {kind:"robot", tone:"curious", color:"#9fb4c4"},
+  {kind:"alien", tone:"curious", color:"#8fe0a0"},
+  {kind:"ghost", tone:"mysterious", color:"#cfe8ff"},
+  {kind:"dragon", tone:"bold", color:"#5fae6a"},
+  {kind:"snowcreature", tone:"wise", color:"#eef5fb"},
+  {kind:"owl", tone:"curious", color:"#6b5a44"},
+];
+
+function getDialoguePool() {
+  const lang = currentLang || "en";
+  const dict = STRINGS[lang] || STRINGS.en;
+  return {
+    general: dict.npcGeneral,
+    wise: dict.npcWise,
+    cheerful: dict.npcCheerful,
+    curious: dict.npcCurious,
+    mysterious: dict.npcMysterious,
+    thoughtful: dict.npcThoughtful,
+    bold: dict.npcBold,
+    wholesome: dict.npcWholesome,
+    fox: dict.npcFox,
+    robot: dict.npcRobot,
+    alien: dict.npcAlien,
+    ghost: dict.npcGhost,
+    dragon: dict.npcDragon,
+    owl: dict.npcOwl,
+  };
+}
+
+let recentLines = [];
+function npcLine(def){
+  const pool = (getDialoguePool()[def.kind]||[]).concat(getDialoguePool()[def.tone]||[]).concat(getDialoguePool().general);
+  let candidates = pool.filter(l=>!recentLines.includes(l));
+  if(candidates.length===0) candidates = pool;
+  const line = candidates[Math.floor(Math.random()*candidates.length)];
+  recentLines.push(line); if(recentLines.length>10) recentLines.shift();
+  return line;
+}
+
+let npcs = [];
+let lastNpcSpawnAt = 0;
+
+function maybeSpawnNpc(now){
+  if(mode!=='earth') return;
+  if(npcs.length>0) return;
+  if(now - lastNpcSpawnAt < 22000) return;
+  if(Math.random()>0.004) return;
+  const def = NPC_DEFS[Math.floor(Math.random()*NPC_DEFS.length)];
+  const dir = Math.random()<0.5 ? 1 : -1;
+  lastNpcSpawnAt = now;
+  const speedMap = {fox:46, rabbit:40, deer:34, robot:22, alien:26, ghost:24, dragon:30, snowcreature:24, owl:28};
+  const speed = speedMap[def.kind] || 30;
+  npcs.push({
+    def, dir, x: dir>0 ? -60 : W+60, state:"walking", talkTimer:0, gait:0, speed,
+    targetX: W*0.28 + (dir>0? -110 : 110)
+  });
+}
+function updateNpcs(dt){
+  npcs.forEach(n=>{
+    n.gait += dt;
+    if(n.state==="walking"){
+      n.x += n.dir*n.speed*dt/1000;
+      const reached = n.dir>0 ? n.x>=n.targetX : n.x<=n.targetX;
+      const fullyVisible = n.x > 46 && n.x < W-46;
+      if(reached && fullyVisible){
+        n.state="talking"; n.talkTimer=0; n.line = npcLine(n.def); showNpcBubble(n);
+      }
+    } else if(n.state==="talking"){
+      n.talkTimer += dt;
+      if(n.talkTimer>2700){
+        n.state="leaving";
+        const lang = currentLang || "en";
+        const dict = STRINGS[lang] || STRINGS.en;
+        const arr = dict.leaveLines || STRINGS.en.leaveLines;
+        n.leaveLine = arr[Math.floor(Math.random()*arr.length)];
+        showNpcBubble(n, n.leaveLine);
+        setTimeout(()=>{ n.state="walkaway"; }, 1800);
+      }
+    } else if(n.state==="walkaway"){
+      n.x += n.dir*n.speed*dt/1000;
+    }
+  });
+  npcs = npcs.filter(n=> n.state!=='walkaway' || (n.x>-80 && n.x<W+80));
+  if(npcs.length===0) hideNpcBubble();
+}
+function showNpcBubble(n, textOverride){
+  const bubble = document.getElementById("npcBubble");
+  bubble.textContent = textOverride || n.line;
+  bubble.classList.add("show");
+}
+function hideNpcBubble(){
+  document.getElementById("npcBubble").classList.remove("show");
+}
+function positionNpcBubble(n){
+  const bubble = document.getElementById("npcBubble");
+  if(!bubble.classList.contains("show")) return;
+  bubble.style.left = n.x+"px";
+  bubble.style.top = (H*0.82 - 96)+"px";
+}
+function drawCreature(c, x, groundY, phase, def, scale, t){
+  const kind = def.kind || "human";
+  const color = def.color || "rgba(18,14,20,0.82)";
+  const walking = phase !== null;
+  c.save(); c.translate(x, groundY); c.scale(scale,scale); c.fillStyle=color; c.strokeStyle=color; c.lineCap="round";
+  switch(kind){
+    case "fox": {
+      const hop = Math.abs(Math.sin(t*7))*3;
+      c.beginPath(); c.ellipse(0,-12-hop,14,8,0,0,Math.PI*2); c.fill();
+      c.beginPath(); c.ellipse(15,-18-hop,7,6,0,0,Math.PI*2); c.fill();
+      c.beginPath(); c.moveTo(19,-24-hop); c.lineTo(24,-30-hop); c.lineTo(21,-19-hop); c.closePath(); c.fill();
+      c.beginPath(); c.moveTo(-14,-10-hop); c.quadraticCurveTo(-30,-14-hop,-26,-2-hop); c.quadraticCurveTo(-18,-4-hop,-14,-10-hop); c.fill();
+      break; }
+    case "rabbit": {
+      const hop = Math.abs(Math.sin(t*8))*5;
+      c.beginPath(); c.ellipse(0,-10-hop,9,7,0,0,Math.PI*2); c.fill();
+      c.beginPath(); c.ellipse(9,-18-hop,3,7,0.3,0,Math.PI*2); c.fill();
+      c.beginPath(); c.ellipse(14,-19-hop,3,7,0.5,0,Math.PI*2); c.fill();
+      break; }
+    case "deer": {
+      const step = walking ? Math.sin((phase||0)*Math.PI*2)*6 : 0;
+      c.fillRect(-12,-26,24,14);
+      c.save(); c.translate(-9,-12); c.rotate(step*Math.PI/180); c.fillRect(-2,0,4,16); c.restore();
+      c.save(); c.translate(9,-12); c.rotate(-step*Math.PI/180); c.fillRect(-2,0,4,16); c.restore();
+      c.beginPath(); c.arc(15,-30,6,0,Math.PI*2); c.fill();
+      c.strokeStyle=color; c.lineWidth=1.6;
+      c.beginPath(); c.moveTo(17,-35); c.lineTo(21,-42); c.moveTo(17,-35); c.lineTo(14,-42); c.stroke();
+      break; }
+    case "robot": {
+      const whirr = Math.sin(t*4)*2;
+      c.fillRect(-11,-40,22,26);
+      c.fillRect(-8,-52,16,13);
+      c.fillStyle="rgba(140,220,255,0.85)"; c.fillRect(-5,-48,4,4); c.fillRect(3,-48,4,4);
+      c.fillStyle=color;
+      c.save(); c.translate(-11,-34); c.rotate(whirr*Math.PI/180); c.fillRect(-10,0,10,4); c.restore();
+      c.save(); c.translate(11,-34); c.rotate(-whirr*Math.PI/180); c.fillRect(0,0,10,4); c.restore();
+      c.fillRect(-8,-14,6,16); c.fillRect(2,-14,6,16);
+      break; }
+    case "alien": {
+      const flt = Math.sin(t*2)*4;
+      c.beginPath(); c.ellipse(0,-30+flt,9,12,0,0,Math.PI*2); c.fill();
+      c.fillStyle="rgba(10,20,20,0.7)"; c.beginPath(); c.ellipse(0,-32+flt,6,4,0,0,Math.PI*2); c.fill();
+      c.fillStyle=color;
+      c.beginPath(); c.ellipse(0,-10+flt,10,5,0,0,Math.PI*2); c.fill();
+      c.globalAlpha=0.35; c.beginPath(); c.ellipse(0,-6+flt,16,5,0,0,Math.PI*2); c.fill(); c.globalAlpha=1;
+      break; }
+    case "ghost": {
+      const flt = Math.sin(t*1.4)*5;
+      c.globalAlpha=0.7;
+      c.beginPath(); c.moveTo(-12,-6+flt);
+      c.quadraticCurveTo(-14,-40+flt,0,-42+flt);
+      c.quadraticCurveTo(14,-40+flt,12,-6+flt);
+      for(let i=0;i<3;i++){ c.quadraticCurveTo(12-i*8-2,-2+flt, 12-i*8-6,-6+flt); }
+      c.closePath(); c.fill();
+      c.globalAlpha=1;
+      break; }
+    case "dragon": {
+      const flap = Math.sin(t*5)*14;
+      c.beginPath(); c.ellipse(0,-16,13,9,0,0,Math.PI*2); c.fill();
+      c.beginPath(); c.ellipse(14,-22,6,5,0,0,Math.PI*2); c.fill();
+      c.save(); c.translate(-4,-20); c.rotate(-flap*Math.PI/180); c.beginPath(); c.moveTo(0,0); c.lineTo(-16,-10); c.lineTo(-4,4); c.closePath(); c.fill(); c.restore();
+      c.strokeStyle=color; c.lineWidth=4; c.beginPath(); c.moveTo(-12,-10); c.quadraticCurveTo(-24,-2,-20,6); c.stroke();
+      break; }
+    case "snowcreature": {
+      c.beginPath(); c.arc(0,-12,12,0,Math.PI*2); c.fill();
+      c.beginPath(); c.arc(0,-30,8,0,Math.PI*2); c.fill();
+      c.fillStyle="rgba(40,30,20,0.7)"; c.beginPath(); c.arc(-3,-31,1.4,0,Math.PI*2); c.fill();
+      c.beginPath(); c.arc(3,-31,1.4,0,Math.PI*2); c.fill();
+      break; }
+    case "owl": {
+      const blink = Math.sin(t*1.2)>0.9 ? 0.2 : 1;
+      c.beginPath(); c.ellipse(0,-20,11,14,0,0,Math.PI*2); c.fill();
+      c.fillStyle="rgba(255,240,210,0.9)";
+      c.beginPath(); c.ellipse(-4,-22,3.4,3.4*blink,0,0,Math.PI*2); c.fill();
+      c.beginPath(); c.ellipse(4,-22,3.4,3.4*blink,0,0,Math.PI*2); c.fill();
+      c.fillStyle=color;
+      c.beginPath(); c.moveTo(-10,-8); c.lineTo(-2,-2); c.lineTo(-10,4); c.closePath(); c.fill();
+      c.beginPath(); c.moveTo(10,-8); c.lineTo(2,-2); c.lineTo(10,4); c.closePath(); c.fill();
+      break; }
+    default: {
+      c.restore();
+      const fauxDef = Object.assign({id:"npc", speedMul:1}, def);
+      drawFigure(c, x, groundY, phase, fauxDef, scale*1.08, "rgba(18,14,20,0.82)", t);
+      return;
+    }
+  }
+  c.restore();
+}
+function drawNpcs(groundY){
+  npcs.forEach(n=>{
+    positionNpcBubble(n);
+    const gaitPhase = (n.state==="walking"||n.state==="walkaway") ? (n.gait%900)/900 : null;
+    drawCreature(ctx, n.x, groundY+2, gaitPhase, n.def, 1.08, simTime);
+    if(n.def.kind==="human"||!n.def.kind) drawNpcProp(n.x, groundY+2, n.def);
+  });
+}
+function drawNpcProp(x, groundY, def){
+  if(!def.prop) return;
+  ctx.save(); ctx.translate(x, groundY-30); ctx.fillStyle="rgba(18,14,20,0.8)"; ctx.strokeStyle="rgba(18,14,20,0.8)";
+  switch(def.prop){
+    case "dog":
+      ctx.save(); ctx.translate(-20,32); ctx.beginPath(); ctx.ellipse(0,0,10,5,0,0,Math.PI*2); ctx.fill();
+      ctx.fillRect(8,-4,4,4); ctx.restore(); break;
+    case "bike":
+      ctx.beginPath(); ctx.arc(-14,36,9,0,Math.PI*2); ctx.stroke();
+      ctx.beginPath(); ctx.arc(14,36,9,0,Math.PI*2); ctx.stroke(); break;
+    case "guitar":
+      ctx.save(); ctx.translate(-6,10); ctx.rotate(0.3);
+      ctx.beginPath(); ctx.ellipse(0,0,6,9,0,0,Math.PI*2); ctx.fill(); ctx.restore(); break;
+    case "lantern":
+      ctx.fillStyle="rgba(255,210,140,0.85)"; ctx.beginPath(); ctx.arc(14,20,4,0,Math.PI*2); ctx.fill(); break;
+    case "flowers":
+      ctx.fillStyle="rgba(230,150,180,0.85)";
+      for(let i=0;i<3;i++){ ctx.beginPath(); ctx.arc(-8+i*4,8,2.2,0,Math.PI*2); ctx.fill(); } break;
+    case "camera": ctx.fillRect(-4,4,10,7); break;
+    case "binoculars": ctx.fillRect(-6,-2,5,4); ctx.fillRect(1,-2,5,4); break;
+    case "basket": ctx.fillRect(-6,10,12,8); break;
+    default: break;
+  }
+  ctx.restore();
+}
+
+/* ================================================================
+   FIGURE DRAWING
+   ================================================================ */
+function drawFigure(c, x, groundY, phase, def, s, color, idleT){
+  c.save();
+  c.translate(x, groundY);
+  c.scale(s,s);
+  c.fillStyle = color; c.strokeStyle = color; c.lineCap = "round";
+
+  const walking = phase !== null;
+  const p = walking ? phase : 0;
+  const stride = walking ? Math.sin(p*Math.PI*2) : Math.sin(idleT*1.6)*0.06;
+  const bob = walking ? Math.abs(Math.cos(p*Math.PI*2))*3.4 : Math.sin(idleT*1.6)*1.1+1.1;
+  const legSwing = 16, armSwing = 13;
+
+  const hipY = -46 - bob, shoulderY = -78 - bob, headY = -92 - bob;
+  const leanX = def.id==="elder" ? -3 : (walking? stride*1.2 : 0);
+
+  drawLeg(c, 0, hipY, -stride*legSwing);
+  drawArm(c, -2, shoulderY, stride*armSwing, false);
+
+  c.beginPath(); c.lineWidth = 8; c.moveTo(0, hipY);
+  c.quadraticCurveTo(leanX*0.5, (hipY+shoulderY)/2, leanX, shoulderY);
+  c.stroke();
+
+  if(def.coat){
+    c.beginPath(); c.moveTo(-9, hipY-2);
+    c.quadraticCurveTo(-2, shoulderY+8, 6, shoulderY+2);
+    c.lineTo(9, hipY+4); c.closePath();
+    c.globalAlpha=0.9; c.fill(); c.globalAlpha=1;
+  }
+  if(def.pack){
+    c.save(); c.translate(leanX-6, shoulderY+10);
+    if(c.roundRect){ c.beginPath(); c.roundRect(-4,-2,13,26,4); c.fill(); }
+    else { c.fillRect(-4,-2,13,26); }
+    c.restore();
+  }
+  c.beginPath(); c.arc(leanX, headY, 8.4, 0, Math.PI*2); c.fill();
+  if(def.hat){
+    c.beginPath(); c.ellipse(leanX, headY-6.5, 10, 3, 0, 0, Math.PI*2); c.fill();
+    c.beginPath(); c.ellipse(leanX, headY-9, 5.4, 5, 0, Math.PI, Math.PI*2); c.fill();
+  }
+  drawArm(c, leanX+2, shoulderY, -stride*armSwing, def.stick, stride);
+  drawLeg(c, leanX, hipY, stride*legSwing);
+  c.restore();
+}
+function drawLeg(c, x, hipY, angleDeg){
+  c.save(); c.translate(x, hipY); c.rotate(angleDeg*Math.PI/180);
+  c.lineWidth = 8;
+  c.beginPath(); c.moveTo(0,0);
+  const kneeBend = Math.max(0, Math.sin((angleDeg/16)*Math.PI/2))*8;
+  c.quadraticCurveTo(2, 22, -2+kneeBend*0.2, 44);
+  c.stroke();
+  c.beginPath(); c.ellipse(-2+kneeBend*0.2, 45, 6, 2.6, 0.1, 0, Math.PI*2); c.fill();
+  c.restore();
+}
+function drawVehicle(c, x, groundY, phase, kind, color, t){
+  c.save(); c.translate(x, groundY); c.fillStyle=color; c.strokeStyle=color; c.lineCap="round";
+  const wheelSpin = (phase===null? t*2 : phase*Math.PI*2);
+  if(kind==="bicycle"){
+    c.lineWidth=2.4;
+    c.beginPath(); c.arc(-16,-4,13,0,Math.PI*2); c.stroke();
+    c.beginPath(); c.arc(16,-4,13,0,Math.PI*2); c.stroke();
+    c.save(); c.translate(-16,-4); c.rotate(wheelSpin);
+    for(let i=0;i<6;i++){ c.beginPath(); c.moveTo(0,0); c.lineTo(Math.cos(i*Math.PI/3)*12, Math.sin(i*Math.PI/3)*12); c.stroke(); }
+    c.restore();
+    c.save(); c.translate(16,-4); c.rotate(wheelSpin);
+    for(let i=0;i<6;i++){ c.beginPath(); c.moveTo(0,0); c.lineTo(Math.cos(i*Math.PI/3)*12, Math.sin(i*Math.PI/3)*12); c.stroke(); }
+    c.restore();
+    c.lineWidth=3;
+    c.beginPath(); c.moveTo(-16,-4); c.lineTo(2,-26); c.lineTo(16,-4); c.stroke();
+    c.beginPath(); c.moveTo(2,-26); c.lineTo(-2,-4); c.stroke();
+    c.beginPath(); c.moveTo(-2,-4); c.lineTo(-16,-4); c.stroke();
+    c.beginPath(); c.moveTo(2,-26); c.lineTo(8,-30); c.stroke();
+    const bob = Math.sin((phase||0)*Math.PI*4)*1.4;
+    c.beginPath(); c.arc(2,-40-bob,7,0,Math.PI*2); c.fill();
+    c.lineWidth=6; c.beginPath(); c.moveTo(2,-33-bob); c.lineTo(-4,-16); c.stroke();
+  } else if(kind==="car"){
+    c.lineWidth=2.2;
+    c.beginPath(); c.arc(-18,-2,9,0,Math.PI*2); c.stroke(); c.fill();
+    c.beginPath(); c.arc(18,-2,9,0,Math.PI*2); c.stroke(); c.fill();
+    c.save();
+    if(c.roundRect){ c.beginPath(); c.roundRect(-30,-30,60,26,8); c.fill(); }
+    else { c.fillRect(-30,-30,60,26); }
+    c.restore();
+    c.save();
+    if(c.roundRect){ c.beginPath(); c.roundRect(-18,-44,30,18,6); c.fill(); }
+    else { c.fillRect(-18,-44,30,18); }
+    c.restore();
+    c.fillStyle="rgba(170,210,240,0.55)";
+    c.fillRect(-14,-40,10,10); c.fillRect(0,-40,9,10);
+  }
+  c.restore();
+}
+function drawArm(c, x, shoulderY, angleDeg, stick){
+  c.save(); c.translate(x, shoulderY); c.rotate(angleDeg*Math.PI/180);
+  c.lineWidth = 6.5;
+  c.beginPath(); c.moveTo(0,0); c.quadraticCurveTo(2,17,0,34); c.stroke();
+  if(stick){
+    c.save(); c.translate(0,34); c.rotate(-angleDeg*0.4*Math.PI/180);
+    c.lineWidth = 3; c.beginPath(); c.moveTo(0,-4); c.lineTo(0, 44); c.stroke();
+    c.restore();
+  }
+  c.restore();
+}
+
+/* ================================================================
+   BACKGROUND PRIMITIVES
+   ================================================================ */
+function drawMountainLayer(offsetX, baseY, amp, seedBase, color){
+  const tileW = 900;
+  const start = Math.floor((offsetX - tileW) / tileW);
+  for(let i=start; i<start+4; i++){
+    const rnd = mulberry32(seedBase + i*97);
+    const tx = i*tileW - offsetX;
+    ctx.beginPath(); ctx.moveTo(tx, baseY);
+    const pts = 7;
+    for(let p=0;p<=pts;p++){
+      const px = tx + (p/pts)*tileW;
+      const py = baseY - amp*(0.4+0.6*rnd())*Math.sin(p*1.7+seedBase*0.3);
+      ctx.lineTo(px, py);
+    }
+    ctx.lineTo(tx+tileW, baseY+amp+60); ctx.lineTo(tx, baseY+amp+60); ctx.closePath();
+    ctx.fillStyle = color; ctx.fill();
+  }
+}
+function drawTree(x, y, s, color, autumn, sway){
+  ctx.save(); ctx.translate(x,y); ctx.rotate(sway*0.03); ctx.scale(s,s);
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.moveTo(0,-58); ctx.lineTo(-16,-8); ctx.lineTo(-6,-8); ctx.lineTo(-20,20); ctx.lineTo(20,20); ctx.lineTo(6,-8); ctx.lineTo(16,-8);
+  ctx.closePath(); ctx.fill();
+  if(autumn){ ctx.fillStyle = "rgba(224,138,58,0.4)"; ctx.fill(); }
+  ctx.fillRect(-2.5,20,5,10);
+  ctx.restore();
+}
+function drawPineForest(offsetX, baseY, seedBase, color, density, autumn, t){
+  const tileW = 240;
+  const start = Math.floor((offsetX-tileW)/tileW);
+  for(let i=start;i<start+Math.ceil(W/tileW)+3;i++){
+    const rnd = mulberry32(seedBase+i*13);
+    if(rnd() > density) continue;
+    const tx = i*tileW - offsetX + rnd()*70;
+    const s = 0.7 + rnd()*0.55;
+    const sway = Math.sin(t*0.6 + i);
+    drawTree(tx, baseY, s, color, autumn, sway);
+  }
+}
+function drawFlowers(offsetX, baseY, seedBase){
+  const tileW = 90;
+  const start = Math.floor((offsetX-tileW)/tileW);
+  const colors = ["#e8a1c4","#f0d878","#e88a5a","#c7d6f0"];
+  for(let i=start;i<start+Math.ceil(W/tileW)+2;i++){
+    const rnd = mulberry32(seedBase+i*7);
+    if(rnd()>0.55) continue;
+    const tx = i*tileW - offsetX + rnd()*50;
+    ctx.fillStyle = colors[Math.floor(rnd()*colors.length)];
+    ctx.beginPath(); ctx.arc(tx, baseY - rnd()*4, 2.6, 0, Math.PI*2); ctx.fill();
+  }
+}
+function drawVillage(offsetX, baseY, seedBase, night){
+  const tileW = 460;
+  const start = Math.floor((offsetX-tileW)/tileW);
+  for(let i=start;i<start+3;i++){
+    const rnd = mulberry32(seedBase+i*29);
+    const tx = i*tileW - offsetX + 180;
+    for(let k=0;k<3;k++){
+      const hx = tx + k*38 - 40;
+      ctx.fillStyle = "rgba(20,16,22,0.85)";
+      ctx.beginPath();
+      ctx.moveTo(hx-14, baseY); ctx.lineTo(hx, baseY-22); ctx.lineTo(hx+14, baseY); ctx.closePath(); ctx.fill();
+      ctx.fillRect(hx-11, baseY-14, 22, 14);
+      if(night){ ctx.fillStyle="rgba(255,205,120,0.9)"; ctx.fillRect(hx-3, baseY-9, 5, 5); }
+    }
+  }
+}
+function drawWater(offsetX, baseY, h, skyTop, skyBot, t){
+  const grad = ctx.createLinearGradient(0, baseY, 0, baseY+h);
+  grad.addColorStop(0, skyBot); grad.addColorStop(1, skyTop);
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, baseY, W, h);
+  ctx.strokeStyle = "rgba(255,255,255,0.18)"; ctx.lineWidth=1;
+  for(let i=0;i<5;i++){
+    const wy = baseY + 8 + i*(h/6);
+    ctx.beginPath();
+    for(let x=0;x<=W;x+=20){ const yy = wy+Math.sin((x*0.03)+t*1.5+i)*1.6; x===0?ctx.moveTo(x,yy):ctx.lineTo(x,yy); }
+    ctx.stroke();
+  }
+}
+function drawWaterfall(x, baseY, h, t){
+  ctx.save();
+  ctx.globalAlpha=0.75;
+  const grad = ctx.createLinearGradient(x,baseY-h,x,baseY);
+  grad.addColorStop(0,"rgba(255,255,255,0.9)"); grad.addColorStop(1,"rgba(255,255,255,0.5)");
+  ctx.fillStyle = grad;
+  ctx.fillRect(x-14, baseY-h, 28, h);
+  ctx.fillStyle="rgba(255,255,255,0.5)";
+  for(let i=0;i<10;i++){
+    const fy = ((t*90 + i*40) % h);
+    ctx.fillRect(x-14+((i%3)-1)*6, baseY-h+fy, 3, 10);
+  }
+  ctx.globalAlpha=1;
+  ctx.restore();
+}
+
+/* ================================================================
+   EARTH RENDER
+   ================================================================ */
+let simTime = 0;
+function renderEarth(dt, now){
+  simTime += dt/1000;
+  if(stepping){
+    stepPhase += dt/currentStepDur;
+    if(stepPhase>=1){ stepPhase=1; scrollX = stepTargetScroll; stepping=false; advanceStep(); }
+    else {
+      const eased = stepPhase<0.5 ? 2*stepPhase*stepPhase : 1-Math.pow(-2*stepPhase+2,2)/2;
+      scrollX = lerp(stepStartScroll, stepTargetScroll, eased);
+    }
+  }
+
+  const cyclePos = (S.totalSteps % CYCLE_STEPS)/CYCLE_STEPS;
+  const ph = getPhase(cyclePos);
+  const skyTop = lerpColor(ph.a.sky[0], ph.b.sky[0], ph.t);
+  const skyMid = lerpColor(ph.a.sky[1], ph.b.sky[1], ph.t);
+  const skyBot = lerpColor(ph.a.sky[2], ph.b.sky[2], ph.t);
+  const mtnColor = lerpColor(ph.a.mtn, ph.b.mtn, ph.t);
+  const mtn2Color = lerpColor(ph.a.mtn2, ph.b.mtn2, ph.t);
+  const sunColor = lerpColor(ph.a.sun, ph.b.sun, ph.t);
+  const cloudColor = lerpColor(ph.a.cloud, ph.b.cloud, ph.t);
+  const starAlpha = lerp(ph.a.star, ph.b.star, ph.t);
+  const fogAlpha = lerp(ph.a.fog, ph.b.fog, ph.t);
+  const isNight = starAlpha>0.5;
+  const isDay = starAlpha<0.08;
+
+  ctx.clearRect(0,0,W,H);
+  const g = ctx.createLinearGradient(0,0,0,H*0.72);
+  g.addColorStop(0, skyTop); g.addColorStop(0.55, skyMid); g.addColorStop(1, skyBot);
+  ctx.fillStyle = g; ctx.fillRect(0,0,W,H);
+
+  if(starAlpha>0.02){
+    const rnd = mulberry32(7);
+    for(let i=0;i<80;i++){
+      const sx = rnd()*W, sy = rnd()*H*0.55;
+      const tw = 0.5+0.5*Math.sin(simTime*2+i);
+      ctx.globalAlpha = starAlpha*tw;
+      ctx.fillStyle = "#fff";
+      ctx.fillRect(sx,sy,1.6,1.6);
+    }
+    ctx.globalAlpha=1;
+  }
+  if(isNight && Math.random()<0.0025){
+    shootingStars.push({x:Math.random()*W*0.6+W*0.2, y:Math.random()*H*0.25, life:0});
+  }
+  shootingStars.forEach(st=>{ st.life+=dt; });
+  shootingStars = shootingStars.filter(st=>st.life<700);
+  shootingStars.forEach(st=>{
+    const p = st.life/700;
+    ctx.strokeStyle = `rgba(255,255,255,${1-p})`; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.moveTo(st.x - p*70, st.y + p*40); ctx.lineTo(st.x, st.y); ctx.stroke();
+  });
+
+  const sunAngle = cyclePos*Math.PI*2 - Math.PI/2;
+  const sunX = W*0.5 + Math.cos(sunAngle)*W*0.62;
+  const sunY = H*0.42 + Math.sin(sunAngle)*H*0.32;
+  const glow = ctx.createRadialGradient(sunX,sunY,0,sunX,sunY,isNight?46:110);
+  glow.addColorStop(0, sunColor); glow.addColorStop(1, "rgba(0,0,0,0)");
+  ctx.fillStyle = glow; ctx.beginPath(); ctx.arc(sunX,sunY,isNight?70:150,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle = sunColor; ctx.beginPath(); ctx.arc(sunX,sunY,isNight?14:23,0,Math.PI*2); ctx.fill();
+
+  ctx.save();
+  clouds.forEach(c=>{
+    const cx = ((c.wx - scrollX*0.04) % (W+900) + (W+900)) % (W+900) - 450;
+    ctx.globalAlpha = 0.5*(1-starAlpha*0.6);
+    ctx.fillStyle = cloudColor;
+    for(let k=0;k<3;k++){
+      ctx.beginPath();
+      ctx.ellipse(cx+k*34*c.s, c.y+Math.sin(k)*6, 40*c.s, 18*c.s, 0, 0, Math.PI*2);
+      ctx.fill();
+    }
+  });
+  ctx.restore();
+
+  const farBase = H*0.62;
+  drawMountainLayer(scrollX*0.05, farBase, 90, 3, mtn2Color);
+  const nearMtnBase = H*0.68;
+  drawMountainLayer(scrollX*0.12, nearMtnBase, 70, 11, mtnColor);
+
+  const terrain = getTerrain(S.totalSteps);
+  if(terrain.village) drawVillage(scrollX*0.14, nearMtnBase-4, 51, isNight);
+
+  if(fogAlpha>0.02){
+    ctx.save();
+    const fogGrad = ctx.createLinearGradient(0, H*0.58, 0, H*0.78);
+    fogGrad.addColorStop(0, "rgba(255,255,255,0)");
+    fogGrad.addColorStop(0.5, `rgba(230,235,245,${fogAlpha*0.5})`);
+    fogGrad.addColorStop(1, "rgba(255,255,255,0)");
+    ctx.fillStyle = fogGrad;
+    ctx.fillRect(0, H*0.58, W, H*0.22);
+    ctx.restore();
+  }
+
+  const treeBase = H*0.745;
+  if(terrain.trees === "pine"){
+    const treeColor = terrain.snow ? "#1c2a30" : (terrain.autumn ? "#4a2f1c" : "#1e2a1a");
+    drawPineForest(scrollX*0.28, treeBase, 40, treeColor, terrain.dense?0.7:0.32, terrain.autumn, simTime);
+  } else if(terrain.trees === "sparse"){
+    drawPineForest(scrollX*0.28, treeBase, 61, "#233022", 0.14, false, simTime);
+  }
+
+  if(terrain.waterfall) drawWaterfall(W*0.72, treeBase+10, 130, simTime);
+
+  if(isDay){
+    if(Math.random()<0.01) butterflies.push({x:Math.random()*W, y:H*0.65+Math.random()*H*0.1, t:0, dir: Math.random()<0.5?1:-1});
+    butterflies.forEach(b=>{ b.t+=dt/1000; b.x += b.dir*14*dt/1000; b.y += Math.sin(b.t*5)*0.6; });
+    butterflies = butterflies.filter(b=>b.t<14);
+    ctx.fillStyle="rgba(240,200,120,0.85)";
+    butterflies.forEach(b=>{
+      const flap = Math.sin(b.t*16)*4;
+      ctx.beginPath(); ctx.ellipse(b.x-2, b.y, 3, 2+Math.abs(flap*0.3), 0,0,Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(b.x+2, b.y, 3, 2+Math.abs(flap*0.3), 0,0,Math.PI*2); ctx.fill();
+    });
+  } else { butterflies.length = 0; }
+
+  if(isNight){
+    ctx.save();
+    fireflies.forEach(f=>{
+      f.phase += dt/1000*f.spd*4;
+      f.x += Math.sin(f.phase*0.7)*0.4; f.y += Math.cos(f.phase*0.5)*0.3;
+      if(f.x<0) f.x=W; if(f.x>W) f.x=0;
+      const a = 0.35+0.35*Math.sin(f.phase);
+      ctx.fillStyle = `rgba(220,240,150,${a})`;
+      ctx.beginPath(); ctx.arc(f.x, f.y, 2, 0, Math.PI*2); ctx.fill();
+    });
+    ctx.restore();
+  }
+  if(!isNight){
+    if(Math.random()<0.006) birds.push({x:-40, y:H*0.18+Math.random()*H*0.15, t:0});
+    birds.forEach(b=>{ b.t+=dt/1000; b.x += 60*dt/1000; });
+    birds = birds.filter(b=>b.x<W+40);
+    ctx.strokeStyle="rgba(30,30,40,0.6)"; ctx.lineWidth=1.6;
+    birds.forEach(b=>{
+      const flap = Math.sin(b.t*10)*4;
+      ctx.beginPath();
+      ctx.moveTo(b.x-6, b.y+flap); ctx.lineTo(b.x, b.y-2); ctx.lineTo(b.x+6, b.y+flap);
+      ctx.stroke();
+    });
+  }
+
+  const groundY = H*0.82;
+  if(terrain.water){
+    drawWater(scrollX*0.5, groundY-6, H-(groundY-6), skyTop, skyMid, simTime);
+  } else {
+    const groundGrad = ctx.createLinearGradient(0,groundY,0,H);
+    groundGrad.addColorStop(0, terrain.ground); groundGrad.addColorStop(1, terrain.ground2);
+    ctx.fillStyle = groundGrad; ctx.fillRect(0,groundY,W,H-groundY);
+  }
+
+  if(terrain.flowers) drawFlowers(scrollX*0.6, groundY+30, 88);
+
+  if(!terrain.snow && !terrain.water && !terrain.rocky){
+    ctx.strokeStyle = "rgba(0,0,0,0.28)"; ctx.lineWidth=2;
+    const bladeSpace = 46;
+    const bOff=(scrollX*0.65)%bladeSpace;
+    for(let x=-bOff, i=0; x<W; x+=bladeSpace, i++){
+      const sway = Math.sin(simTime*1.6+i)*4;
+      ctx.beginPath(); ctx.moveTo(x, H*0.985); ctx.quadraticCurveTo(x+sway, H*0.95, x+sway*1.4, H*0.92); ctx.stroke();
+    }
+  }
+
+  ctx.globalAlpha = 0.22; ctx.fillStyle = "#000";
+  const markSpace = 70; const pOff = (scrollX*0.6) % markSpace;
+  if(!terrain.water){
+    for(let x=-pOff; x<W; x+=markSpace){ ctx.beginPath(); ctx.ellipse(x, groundY+18, 20, 4, 0, 0, Math.PI*2); ctx.fill(); }
+  }
+  ctx.globalAlpha=1;
+
+  if(terrain.bridge){
+    ctx.fillStyle = "rgba(0,0,0,0.22)";
+    const plankSpace=34; const bOff=(scrollX*0.6)%plankSpace;
+    for(let x=-bOff;x<W;x+=plankSpace){ ctx.fillRect(x, groundY, 6, H-groundY); }
+  }
+  if(terrain.snow){
+    ctx.fillStyle="rgba(255,255,255,0.85)";
+    const rnd = mulberry32(3);
+    for(let i=0;i<40;i++){
+      const sx=(rnd()*W+ (now*0.01)%W)%W;
+      const sy=(rnd()*H*0.8 + (now*0.03 + i*40)%(H*0.8));
+      ctx.fillRect(sx,sy,2,2);
+    }
+  }
+  if(terrain.autumn){
+    if(Math.random()<0.03) leaves.push({x:Math.random()*W, y:-10, t:0, sway:Math.random()*6});
+    leaves.forEach(l=>{ l.t+=dt/1000; l.y += 22*dt/1000; l.x += Math.sin(l.t*2+l.sway)*0.4; });
+    leaves = leaves.filter(l=>l.y<H);
+    ctx.fillStyle="rgba(210,130,50,0.85)";
+    leaves.forEach(l=>{ ctx.beginPath(); ctx.ellipse(l.x,l.y,3,2,l.t,0,Math.PI*2); ctx.fill(); });
+  } else { leaves.length=0; }
+
+  updateWeather(dt);
+  drawWeather(dt);
+
+  maybeSpawnCritter(isDay, isNight);
+  updateDrawCritters(dt);
+
+  maybeSpawnNpc(now);
+  updateNpcs(dt);
+
+  const charX = W*0.28;
+  const def = currentCharDef();
+  let gaitPhase = null;
+  if(stepping){
+    const eased = stepPhase<0.5 ? 2*stepPhase*stepPhase : 1-Math.pow(-2*stepPhase+2,2)/2;
+    const base = (S.totalSteps % 2) * 0.5;
+    gaitPhase = base + eased*0.5;
+  }
+  drawNpcs(groundY);
+
+  const camBobY = stepping ? Math.sin(stepPhase*Math.PI)*1.4 : Math.sin(simTime*1.6)*0.5;
+  ctx.save(); ctx.translate(0, camBobY);
+  if(S.vehicle==="bicycle" || S.vehicle==="car"){
+    drawVehicle(ctx, charX, groundY+2, gaitPhase, S.vehicle, "rgba(6,7,10,0.94)", simTime);
+  } else {
+    drawFigure(ctx, charX, groundY+2, gaitPhase, def, 1.15, "rgba(6,7,10,0.94)", simTime);
+  }
+  ctx.restore();
+
+  const vg = ctx.createRadialGradient(W/2,H*0.5,H*0.3, W/2,H*0.5,H*0.9);
+  vg.addColorStop(0,"rgba(0,0,0,0)"); vg.addColorStop(1,"rgba(0,0,0,0.28)");
+  ctx.fillStyle = vg; ctx.fillRect(0,0,W,H);
+}
+
+/* ================================================================
+   MARS RENDER
+   ================================================================ */
+function renderMars(dt, now){
+  simTime += dt/1000;
+  if(stepping){
+    stepPhase += dt/currentStepDur;
+    if(stepPhase>=1){ stepPhase=1; marsScrollX = stepTargetScroll; stepping=false; advanceStep(); }
+    else {
+      const eased = stepPhase<0.5 ? 2*stepPhase*stepPhase : 1-Math.pow(-2*stepPhase+2,2)/2;
+      marsScrollX = lerp(stepStartScroll, stepTargetScroll, eased);
+    }
+  }
+  ctx.clearRect(0,0,W,H);
+  const g = ctx.createLinearGradient(0,0,0,H*0.72);
+  g.addColorStop(0,"#1a0d14"); g.addColorStop(0.5,"#5a2c22"); g.addColorStop(1,"#d98a54");
+  ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+
+  const ex = W*0.78, ey = H*0.18;
+  const eg = ctx.createRadialGradient(ex,ey,0,ex,ey,26);
+  eg.addColorStop(0,"rgba(120,170,220,0.9)"); eg.addColorStop(1,"rgba(120,170,220,0)");
+  ctx.fillStyle=eg; ctx.beginPath(); ctx.arc(ex,ey,40,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle="#7aa8dc"; ctx.beginPath(); ctx.arc(ex,ey,8,0,Math.PI*2); ctx.fill();
+
+  ctx.fillStyle="rgba(255,220,180,0.5)"; ctx.beginPath(); ctx.arc(W*0.2,H*0.15,50,0,Math.PI*2); ctx.fill();
+
+  drawMountainLayer(marsScrollX*0.06, H*0.6, 100, 201, "#7a3a2a");
+  drawMountainLayer(marsScrollX*0.14, H*0.68, 80, 209, "#93472e");
+
+  ctx.fillStyle="rgba(230,170,120,0.25)";
+  const rnd = mulberry32(500);
+  for(let i=0;i<30;i++){
+    const dx = (rnd()*W - marsScrollX*0.3) % W; const dxp = ((dx%W)+W)%W;
+    const dy = H*0.5+rnd()*H*0.3 + Math.sin(simTime+i)*4;
+    ctx.beginPath(); ctx.arc(dxp, dy, 1.6, 0, Math.PI*2); ctx.fill();
+  }
+
+  const groundY = H*0.82;
+  const gg = ctx.createLinearGradient(0,groundY,0,H);
+  gg.addColorStop(0,"#a85a38"); gg.addColorStop(1,"#6e3520");
+  ctx.fillStyle=gg; ctx.fillRect(0,groundY,W,H-groundY);
+
+  ctx.fillStyle="rgba(70,30,18,0.55)";
+  const rockSpace=140; const rOff=(marsScrollX*0.6)%rockSpace;
+  for(let x=-rOff,i=0; x<W; x+=rockSpace, i++){
+    const rr = mulberry32(300+i);
+    ctx.beginPath(); ctx.ellipse(x+rr()*40, groundY+16+rr()*10, 14+rr()*10, 8, 0,0,Math.PI*2); ctx.fill();
+  }
+
+  const landmarkX = 0 - marsScrollX + W*0.5;
+  if(landmarkX > -200 && landmarkX < W+200){
+    ctx.save(); ctx.translate(landmarkX-90, groundY);
+    ctx.fillStyle="rgba(220,225,232,0.92)";
+    ctx.beginPath(); ctx.moveTo(0,-70); ctx.quadraticCurveTo(18,-30,14,0); ctx.lineTo(-14,0); ctx.quadraticCurveTo(-18,-30,0,-70); ctx.fill();
+    ctx.fillStyle="rgba(120,170,220,0.8)"; ctx.beginPath(); ctx.arc(0,-42,5,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle="rgba(220,225,232,0.92)";
+    ctx.beginPath(); ctx.moveTo(-14,0); ctx.lineTo(-24,14); ctx.lineTo(-10,4); ctx.closePath(); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(14,0); ctx.lineTo(24,14); ctx.lineTo(10,4); ctx.closePath(); ctx.fill();
+    ctx.restore();
+    for(let k=0;k<4;k++){
+      const wave = Math.sin(simTime*4+k)*10;
+      ctx.save();
+      ctx.translate(landmarkX+10+k*16, groundY);
+      ctx.fillStyle="rgba(8,4,4,0.85)";
+      ctx.beginPath(); ctx.arc(0,-34,5,0,Math.PI*2); ctx.fill();
+      ctx.fillRect(-3,-30,6,18);
+      ctx.save(); ctx.translate(4,-28); ctx.rotate(-wave*Math.PI/180-0.6); ctx.fillRect(0,0,2.5,14); ctx.restore();
+      ctx.fillRect(-3,-12,3,14); ctx.fillRect(1,-12,3,14);
+      ctx.restore();
+    }
+  }
+
+  const charX = W*0.28;
+  const def = currentCharDef();
+  let gaitPhase=null;
+  if(stepping){
+    const eased = stepPhase<0.5 ? 2*stepPhase*stepPhase : 1-Math.pow(-2*stepPhase+2,2)/2;
+    const base = (marsProgress % 2) * 0.5;
+    gaitPhase = base + eased*0.5;
+  }
+  drawFigure(ctx, charX, groundY+2, gaitPhase, def, 1.15, "rgba(10,6,6,0.92)", simTime);
+
+  const vg = ctx.createRadialGradient(W/2,H*0.5,H*0.3, W/2,H*0.5,H*0.9);
+  vg.addColorStop(0,"rgba(0,0,0,0)"); vg.addColorStop(1,"rgba(40,10,0,0.25)");
+  ctx.fillStyle = vg; ctx.fillRect(0,0,W,H);
+}
+
+/* ================================================================
+   LAUNCH
+   ================================================================ */
+function startLaunch(){
+  mode='launch'; launchStart = performance.now();
+  document.getElementById("hud").classList.add("hidden");
+  hideNpcBubble();
+  npcs = [];
+  playMusicSwell();
+}
+function renderLaunch(now){
+  const elapsed = now - launchStart;
+  ctx.clearRect(0,0,W,H);
+  const T = elapsed/1000;
+  if(T<2){
+    const p = T/2;
+    const g = ctx.createLinearGradient(0,0,0,H);
+    g.addColorStop(0, lerpColor("#5296cf","#16223a",p));
+    g.addColorStop(1, lerpColor("#e3f4f6","#2a3a55",p));
+    ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+    const groundY=H*0.82;
+    ctx.fillStyle="#31402a"; ctx.fillRect(0,groundY,W,H-groundY);
+    const liftY = groundY - p*p*260;
+    drawRocket(W*0.5, liftY, 1, p>0.15);
+  } else if(T<3.4){
+    const p = (T-2)/1.4;
+    const g = ctx.createLinearGradient(0,0,0,H);
+    g.addColorStop(0, lerpColor("#16223a","#050912",p));
+    g.addColorStop(1, lerpColor("#2a3a55","#0a1120",p));
+    ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+    ctx.globalAlpha = p;
+    const rnd = mulberry32(9);
+    ctx.fillStyle="#fff";
+    for(let i=0;i<60;i++) ctx.fillRect(rnd()*W, rnd()*H*0.7, 1.4,1.4);
+    ctx.globalAlpha=1;
+    drawRocket(W*0.5, H*0.7 - p*H*0.5, 1-p*0.3, true);
+  } else if(T<5){
+    ctx.fillStyle="#04060d"; ctx.fillRect(0,0,W,H);
+    const rnd = mulberry32(9);
+    ctx.fillStyle="#fff";
+    for(let i=0;i<120;i++){ const tw=0.6+0.4*Math.sin(T*3+i); ctx.globalAlpha=tw; ctx.fillRect(rnd()*W, rnd()*H, 1.5,1.5); }
+    ctx.globalAlpha=1;
+    const p=(T-3.4)/1.6;
+    drawRocket(W*0.5+Math.sin(p*3)*10, H*0.5 - p*40, 0.7, true);
+    const eS = 90*(1-p*0.7);
+    const eg = ctx.createRadialGradient(W*0.5,H*0.95,0,W*0.5,H*0.95,eS);
+    eg.addColorStop(0,"rgba(120,170,220,0.9)"); eg.addColorStop(1,"rgba(120,170,220,0)");
+    ctx.fillStyle=eg; ctx.beginPath(); ctx.arc(W*0.5,H*0.95,eS,0,Math.PI*2); ctx.fill();
+  } else if(T<7){
+    ctx.fillStyle="#04060d"; ctx.fillRect(0,0,W,H);
+    const rnd = mulberry32(9); ctx.fillStyle="#fff";
+    for(let i=0;i<120;i++) ctx.fillRect(rnd()*W, rnd()*H, 1.5,1.5);
+    const p=(T-5)/2;
+    const marsR = 20+p*p*220;
+    const mg = ctx.createRadialGradient(W*0.5,H*0.5,0,W*0.5,H*0.5,marsR);
+    mg.addColorStop(0,"#e08a5c"); mg.addColorStop(0.7,"#b85c38"); mg.addColorStop(1,"rgba(184,92,56,0)");
+    ctx.fillStyle=mg; ctx.beginPath(); ctx.arc(W*0.5,H*0.5,marsR,0,Math.PI*2); ctx.fill();
+    drawRocket(W*0.5, H*0.5+marsR*0.3, 0.6*(1-p*0.4), true);
+  } else {
+    mode='mars'; marsProgress=0; marsScrollX=0; stepping=false; stepQueue=0;
+    document.getElementById("hud").classList.remove("hidden");
+  }
+}
+function drawRocket(x,y,s,flame){
+  ctx.save(); ctx.translate(x,y); ctx.scale(s,s);
+  ctx.fillStyle="rgba(225,229,235,0.95)";
+  ctx.beginPath(); ctx.moveTo(0,-70); ctx.quadraticCurveTo(20,-30,15,10); ctx.lineTo(-15,10); ctx.quadraticCurveTo(-20,-30,0,-70); ctx.fill();
+  ctx.fillStyle="rgba(120,170,220,0.85)"; ctx.beginPath(); ctx.arc(0,-38,6,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle="rgba(225,229,235,0.95)";
+  ctx.beginPath(); ctx.moveTo(-15,10); ctx.lineTo(-28,26); ctx.lineTo(-10,14); ctx.closePath(); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(15,10); ctx.lineTo(28,26); ctx.lineTo(10,14); ctx.closePath(); ctx.fill();
+  if(flame){
+    const fl = 20+Math.sin(performance.now()*0.02)*8;
+    const fg = ctx.createLinearGradient(0,10,0,10+fl);
+    fg.addColorStop(0,"rgba(255,220,140,0.9)"); fg.addColorStop(1,"rgba(255,120,60,0)");
+    ctx.fillStyle=fg;
+    ctx.beginPath(); ctx.moveTo(-8,10); ctx.lineTo(8,10); ctx.lineTo(0,10+fl); ctx.closePath(); ctx.fill();
+  }
+  ctx.restore();
+}
+
+/* ================================================================
+   ENDING
+   ================================================================ */
+function startEnding(){
+  mode='ending'; endingStart = performance.now();
+  S.marsCompletions = (S.marsCompletions||0)+1; saveState();
+  document.getElementById("hud").classList.add("hidden");
+  const overlay = document.getElementById("endingOverlay");
+  const line1 = document.getElementById("endLine1");
+  const final = document.getElementById("endFinal");
+  const btn = document.getElementById("returnBtn");
+  line1.classList.remove("show"); final.classList.remove("show"); btn.classList.remove("show");
+  overlay.classList.add("active");
+  setTimeout(()=>line1.classList.add("show"), 1800);
+  setTimeout(()=>final.classList.add("show"), 3600);
+  setTimeout(()=>btn.classList.add("show"), 4600);
+}
+let endingCamZoom = 1;
+function renderEnding(dt, now){
+  const elapsed = now - endingStart;
+  const zoomT = clamp(elapsed/2200, 0, 1);
+  endingCamZoom = lerp(1, 0.62, zoomT);
+  ctx.save();
+  ctx.translate(W/2, H*0.55);
+  ctx.scale(endingCamZoom, endingCamZoom);
+  ctx.translate(-W/2, -H*0.55);
+  renderMars(0, now);
+  ctx.restore();
+  ctx.fillStyle="rgba(10,4,4,0.25)"; ctx.fillRect(0,0,W,H);
+}
+document.getElementById("returnBtn").addEventListener("click", ()=>{
+  document.getElementById("endingOverlay").classList.remove("active");
+  mode='earth'; document.getElementById("hud").classList.remove("hidden");
+});
+
+/* ================================================================
+   MAIN LOOP
+   ================================================================ */
+let lastTime = performance.now();
+function loop(now){
+  const dt = Math.min(64, now-lastTime); lastTime = now;
+  if(mode==='earth') renderEarth(dt, now);
+  else if(mode==='launch') renderLaunch(now);
+  else if(mode==='mars') renderMars(dt, now);
+  else if(mode==='ending') renderEnding(dt, now);
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+
+/* ================================================================
+   AUDIO
+   ================================================================ */
+let actx=null, masterGain=null, musicGain=null, natureGain=null, footstepGain=null, windSrc=null;
+function ensureAudio(){
+  if(actx) { if(actx.state==='suspended') actx.resume(); return; }
+  try{
+    actx = new (window.AudioContext||window.webkitAudioContext)();
+    masterGain = actx.createGain(); masterGain.connect(actx.destination);
+    musicGain = actx.createGain(); musicGain.connect(masterGain);
+    natureGain = actx.createGain(); natureGain.connect(masterGain);
+    footstepGain = actx.createGain(); footstepGain.connect(masterGain);
+    applyVolumes();
+    startWind();
+    startMusicBed();
+  }catch(e){ actx=null; }
+}
+function applyVolumes(){
+  if(!actx) return;
+  const m = S.muteAll ? 0 : S.volMaster;
+  masterGain.gain.value = m;
+  musicGain.gain.value = S.volMusic;
+  natureGain.gain.value = S.volNature;
+  footstepGain.gain.value = S.volFootsteps;
+}
+document.addEventListener("pointerdown", ensureAudio, {once:true, passive:true});
+
+function noiseBurst(duration, freq, gainVal, type, bus){
+  if(!actx) return;
+  const bufferSize = Math.max(1, actx.sampleRate*duration|0);
+  const buffer = actx.createBuffer(1, bufferSize, actx.sampleRate);
+  const data = buffer.getChannelData(0);
+  for(let i=0;i<bufferSize;i++){ data[i] = (Math.random()*2-1) * (1-i/bufferSize); }
+  const src = actx.createBufferSource(); src.buffer = buffer;
+  const filter = actx.createBiquadFilter(); filter.type = type||"bandpass"; filter.frequency.value = freq*(0.94+Math.random()*0.12);
+  const g = actx.createGain(); g.gain.value = gainVal;
+  src.connect(filter); filter.connect(g); g.connect(bus||footstepGain);
+  src.start();
+}
+function playFootstep(terrainId){
+  if(!actx) return;
+  const map = {
+    grass:{f:1400,g:0.06,t:"bandpass"}, meadow:{f:1400,g:0.06,t:"bandpass"}, forest:{f:1300,g:0.055,t:"bandpass"},
+    dirt:{f:900,g:0.055,t:"lowpass"}, hills:{f:900,g:0.05,t:"lowpass"}, village:{f:950,g:0.05,t:"lowpass"},
+    bridge:{f:600,g:0.08,t:"lowpass"}, rock:{f:2200,g:0.05,t:"highpass"}, cave:{f:2000,g:0.045,t:"highpass"},
+    autumn:{f:1800,g:0.065,t:"bandpass"}, snow:{f:2600,g:0.045,t:"highpass"}, lake:{f:1200,g:0.05,t:"bandpass"}, waterfall:{f:1200,g:0.05,t:"bandpass"}
+  };
+  const p = map[terrainId] || map.grass;
+  noiseBurst(0.12, p.f, p.g, p.t, footstepGain);
+}
+function birdChirp(){
+  if(!actx) return;
+  const o = actx.createOscillator(); const g = actx.createGain();
+  o.type="sine"; const base = 1800+Math.random()*900;
+  o.frequency.setValueAtTime(base, actx.currentTime);
+  o.frequency.exponentialRampToValueAtTime(base*(1.2+Math.random()*0.2), actx.currentTime+0.08);
+  g.gain.setValueAtTime(0.0001, actx.currentTime);
+  g.gain.linearRampToValueAtTime(0.04, actx.currentTime+0.01);
+  g.gain.exponentialRampToValueAtTime(0.0001, actx.currentTime+0.2+Math.random()*0.1);
+  o.connect(g); g.connect(natureGain); o.start(); o.stop(actx.currentTime+0.35);
+}
+function owlHoot(){
+  if(!actx) return;
+  const o = actx.createOscillator(); const g = actx.createGain();
+  o.type="sine"; o.frequency.value=330+Math.random()*30;
+  g.gain.setValueAtTime(0.0001, actx.currentTime);
+  g.gain.linearRampToValueAtTime(0.045, actx.currentTime+0.1);
+  g.gain.exponentialRampToValueAtTime(0.0001, actx.currentTime+0.9);
+  o.connect(g); g.connect(natureGain); o.start(); o.stop(actx.currentTime+1);
+}
+function cricketChirp(){ noiseBurst(0.04, 4200+Math.random()*400, 0.022, "highpass", natureGain); }
+function insectHum(){ noiseBurst(0.3, 3000, 0.012, "bandpass", natureGain); }
+function startWind(){
+  if(!actx || windSrc) return;
+  const bufferSize = actx.sampleRate*2|0;
+  const buffer = actx.createBuffer(1,bufferSize, actx.sampleRate);
+  const data = buffer.getChannelData(0);
+  for(let i=0;i<bufferSize;i++) data[i]=Math.random()*2-1;
+  const src = actx.createBufferSource(); src.buffer=buffer; src.loop=true;
+  const filter = actx.createBiquadFilter(); filter.type="lowpass"; filter.frequency.value=500;
+  const g = actx.createGain(); g.gain.value=0.018;
+  src.connect(filter); filter.connect(g); g.connect(natureGain);
+  src.start(); windSrc = src;
+}
+function startMusicBed(){
+  if(!actx) return;
+  [220, 220*1.5].forEach((f,i)=>{
+    const o = actx.createOscillator(); o.type="sine"; o.frequency.value=f;
+    const lfo = actx.createOscillator(); lfo.frequency.value=0.05+i*0.02;
+    const lfoGain = actx.createGain(); lfoGain.gain.value=0.008;
+    lfo.connect(lfoGain); lfoGain.connect(o.frequency);
+    const g = actx.createGain(); g.gain.value=0.03;
+    o.connect(g); g.connect(musicGain);
+    o.start(); lfo.start();
+  });
+}
+function playMusicSwell(){
+  if(!actx) return;
+  const o = actx.createOscillator(); o.type="sine"; o.frequency.setValueAtTime(440, actx.currentTime);
+  o.frequency.exponentialRampToValueAtTime(880, actx.currentTime+6);
+  const g = actx.createGain(); g.gain.setValueAtTime(0.0001, actx.currentTime);
+  g.gain.linearRampToValueAtTime(0.05, actx.currentTime+2);
+  g.gain.linearRampToValueAtTime(0.0001, actx.currentTime+7);
+  o.connect(g); g.connect(musicGain); o.start(); o.stop(actx.currentTime+7.2);
+}
+function playGiftSound(){
+  if(!actx) return;
+  const notes = [523.25, 659.25, 783.99, 1046.5];
+  notes.forEach((freq, i)=>{
+    const o = actx.createOscillator(); const g = actx.createGain();
+    o.type="triangle"; o.frequency.value = freq;
+    const t0 = actx.currentTime + i*0.09;
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.linearRampToValueAtTime(0.08, t0+0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0+0.45);
+    o.connect(g); g.connect(masterGain);
+    o.start(t0); o.stop(t0+0.5);
+  });
+}
+setInterval(()=>{
+  if(!actx || mode!=='earth') return;
+  const cyclePos = (S.totalSteps % CYCLE_STEPS)/CYCLE_STEPS;
+  const ph = getPhase(cyclePos);
+  const night = lerp(ph.a.star, ph.b.star, ph.t) > 0.5;
+  const day = lerp(ph.a.star, ph.b.star, ph.t) < 0.08;
+  if(isRaining()){
+    noiseBurst(0.4, 3000, 0.02, "highpass", natureGain);
+  } else if(night){
+    if(Math.random()<0.5) cricketChirp();
+    if(Math.random()<0.03) owlHoot();
+  } else {
+    if(Math.random()<(day?0.35:0.2)) birdChirp();
+    if(day && Math.random()<0.15) insectHum();
+  }
+}, 650);
+
+/* ================================================================
+   UI WIRING
+   ================================================================ */
+function updateHud(){
+  document.getElementById("stepsHud").textContent = (mode==='mars'? marsProgress : S.totalSteps).toLocaleString();
+  document.getElementById("coinsHud").textContent = S.coins.toLocaleString();
+  const vIcon = document.getElementById("vehicleIcon");
+  if(vIcon) vIcon.textContent = currentVehicle().icon;
+  const progFill = document.getElementById("coinProgFill");
+  if(progFill){
+    const within = mode==='mars' ? 0 : (S.totalSteps % COIN_INTERVAL);
+    progFill.style.width = Math.round((within/COIN_INTERVAL)*100)+"%";
+  }
+  if(mode==='earth'){
+    const terrain = getTerrain(S.totalSteps);
+    const cyclePos = (S.totalSteps % CYCLE_STEPS)/CYCLE_STEPS;
+    const ph = getPhase(cyclePos);
+    const phaseName = ph.t<0.5? ph.a.name : ph.b.name;
+    const lang = currentLang || "en";
+    const dict = STRINGS[lang] || STRINGS.en;
+    const terrainLabel = (dict.terrains && dict.terrains[terrain.label]) || terrain.label;
+    const phaseLabel = (dict.phases && dict.phases[phaseName]) || phaseName;
+    document.getElementById("speedTag").textContent = `${terrainLabel} · ${phaseLabel} · ${speedLabel()}`;
+  } else if(mode==='mars'){
+    document.getElementById("speedTag").textContent = t("marsStepsToGo", {n: MARS_END_STEPS-marsProgress});
+  }
+}
+setInterval(updateHud, 500);
+updateHud();
+
+function anyScreenOpen(){ return !!document.querySelector(".screen.active"); }
+function openScreen(id){
+  document.querySelectorAll(".screen").forEach(s=>s.classList.remove("active"));
+  const el = document.getElementById(id);
+  el.classList.add("active");
+  el.scrollTop = 0;
+  if(id==="screen-characters") renderCharacters();
+  if(id==="screen-shop") renderShop();
+  if(id==="screen-stats") renderStats();
+  if(id==="screen-settings") renderSettings();
+  if(id==="screen-gift") renderGiftScreen();
+  if(id==="screen-menu") refreshMarsMenuItem();
+}
+function closeAllScreens(){ document.querySelectorAll(".screen").forEach(s=>s.classList.remove("active")); }
+document.getElementById("menuBtn").addEventListener("click", ()=>openScreen("screen-menu"));
+document.getElementById("vehicleIcon").addEventListener("click", (e)=>{ e.stopPropagation(); cycleVehicle(); });
+document.getElementById("vehiclePill").addEventListener("pointerdown", (e)=>{ e.stopPropagation(); });
+document.getElementById("closeMenu").addEventListener("click", closeAllScreens);
+document.querySelectorAll("[data-open]").forEach(el=>el.addEventListener("click", ()=>openScreen(el.dataset.open)));
+document.querySelectorAll("[data-back]").forEach(el=>el.addEventListener("click", ()=>openScreen(el.dataset.back)));
+
+document.getElementById("fsBtn").addEventListener("click", async (e)=>{
+  e.stopPropagation();
+  await toggleFullscreen();
+});
+
+let startOverlayHidden = false;
+const startOverlay = document.getElementById("startOverlay");
+async function beginGame(){
+  try { await enterFullscreen(); } catch(e){}
+  setTimeout(()=>{
+    startOverlayHidden = true;
+    startOverlay.classList.add("hidden");
+    ensureAudio();
+    resize();
+  }, 120);
+}
+document.getElementById("startBtn").addEventListener("click", beginGame, {once:true});
+window.addEventListener("keydown", (e)=>{
+  if(!startOverlayHidden && (e.key === "Enter" || e.key === " ")){
+    e.preventDefault();
+    beginGame();
+  }
+});
+
+function refreshMarsMenuItem(){
+  const item = document.getElementById("marsMenuItem");
+  item.style.display = S.spacecraft ? "flex" : "none";
+}
+document.getElementById("marsMenuItem").addEventListener("click", ()=>{
+  closeAllScreens();
+  if(mode==='earth') startLaunch();
+});
+
+/* --- Gift --- */
+function renderGiftScreen(){
+  const input = document.getElementById("giftInput");
+  const msg = document.getElementById("giftMsg");
+  input.value = "";
+  msg.textContent = "";
+  msg.className = "gift-msg";
+  renderGiftHistory();
+  setTimeout(()=>{ try{ input.focus(); }catch(e){} }, 120);
+}
+function renderGiftHistory(){
+  const wrap = document.getElementById("giftHistoryWrap");
+  const list = document.getElementById("giftHistoryList");
+  if(!S.redeemedCodes || S.redeemedCodes.length===0){
+    wrap.style.display = "none";
+    return;
+  }
+  wrap.style.display = "block";
+  list.innerHTML = S.redeemedCodes.map(rc=>{
+    const def = GIFT_CODES[rc.code];
+    const coins = def ? def.coins : 0;
+    return `<div class="gh-row">
+      <span class="gh-code">${rc.code}</span>
+      <span class="gh-reward">+${coins.toLocaleString()} 🪙</span>
+    </div>`;
+  }).join("");
+}
+function redeemGift(){
+  const input = document.getElementById("giftInput");
+  const msg = document.getElementById("giftMsg");
+  const code = (input.value||"").trim();
+  if(!code){
+    msg.textContent = t("giftEmpty");
+    msg.className = "gift-msg err";
+    return;
+  }
+  const def = GIFT_CODES[code];
+  if(!def){
+    msg.textContent = t("giftInvalid");
+    msg.className = "gift-msg err";
+    return;
+  }
+  if(S.redeemedCodes.some(rc => rc.code === code)){
+    msg.textContent = t("giftUsed");
+    msg.className = "gift-msg err";
+    return;
+  }
+  S.coins += def.coins;
+  S.totalCoinsEarned += def.coins;
+  S.redeemedCodes.push({ code, coins: def.coins, at: Date.now() });
+  saveState();
+  updateHud();
+  playGiftSound();
+  msg.innerHTML = t("giftSuccess", {label: t("giftLabel"), coins: def.coins.toLocaleString()});
+  msg.className = "gift-msg ok";
+  input.value = "";
+  renderGiftHistory();
+  showCoinFloat(true);
+}
+document.getElementById("giftBtn").addEventListener("click", redeemGift);
+document.getElementById("giftInput").addEventListener("keydown", (e)=>{
+  if(e.key === "Enter"){ e.preventDefault(); redeemGift(); }
+});
+
+/* --- Characters --- */
+function renderCharacters(){
+  const grid = document.getElementById("charGrid");
+  grid.innerHTML="";
+  CHAR_DEFS.forEach(def=>{
+    const card = document.createElement("div");
+    card.className = "char-card" + (S.character===def.id? " selected":"");
+    const cv = document.createElement("canvas"); cv.width=200; cv.height=140;
+    card.appendChild(cv);
+    const nm = document.createElement("div"); nm.className="cname"; nm.textContent=t(def.nameKey);
+    const ds = document.createElement("div"); ds.className="cdesc"; ds.textContent=t(def.descKey);
+    card.appendChild(nm); card.appendChild(ds);
+    card.addEventListener("click", ()=>{ S.character = def.id; saveState(); renderCharacters(); updateHud(); });
+    grid.appendChild(card);
+    const cctx = cv.getContext("2d");
+    cctx.clearRect(0,0,200,140);
+    drawFigure(cctx, 100, 128, null, def, 0.62, "rgba(240,244,250,0.92)", performance.now()/1000);
+  });
+}
+
+/* --- Shop --- */
+function renderShop(){
+  const list = document.getElementById("upgList");
+  list.innerHTML="";
+  UPGRADES.forEach(u=>{
+    const level = S.upgrades[u.id];
+    const cost = level<MAX_LEVEL ? upgradeCost(level) : null;
+    const card = document.createElement("div"); card.className="upg-card";
+    card.innerHTML = `
+      <div class="upg-icon">${u.icon}</div>
+      <div class="upg-body">
+        <div class="upg-name">${t(u.nameKey)}</div>
+        <div class="upg-desc">${t(u.descKey)}</div>
+        <div class="upg-dots">${Array.from({length:MAX_LEVEL}).map((_,i)=>`<div class="dot ${i<level?'filled':''}"></div>`).join("")}</div>
+        <div class="upg-meta">${t("lv")}${level}${level<MAX_LEVEL? ' → '+(level+1)+' · '+u.effect(level+1):' · '+t("maxed")}</div>
+      </div>
+      <div class="upg-btn ${level>=MAX_LEVEL?'max':(S.coins>=cost?'afford':'')}">${level>=MAX_LEVEL? t("max") : cost+' 🪙'}</div>
+    `;
+    const btn = card.querySelector(".upg-btn");
+    if(level<MAX_LEVEL){
+      btn.addEventListener("click", ()=>{
+        if(S.coins>=cost){ S.coins -= cost; S.upgrades[u.id]++; saveState(); renderShop(); updateHud(); }
+      });
+    }
+    list.appendChild(card);
+  });
+  renderVehicleCard("bicycleBtn","bicycleOwned",BICYCLE_COST,"bicycle");
+  renderVehicleCard("carBtn","carOwned",CAR_COST,"car");
+  renderSpecial();
+}
+function renderVehicleCard(btnId, ownedKey, cost, vehicleId){
+  const btn = document.getElementById(btnId);
+  if(S[ownedKey]){
+    btn.textContent = S.vehicle===vehicleId ? t("inUse") : t("owned");
+    btn.className = "special-btn owned";
+    btn.onclick = ()=>{ S.vehicle = vehicleId; saveState(); updateHud(); renderShop(); };
+  } else if(S.coins >= cost){
+    btn.textContent = t("buyCoins", {cost: cost}); btn.className="special-btn";
+    btn.onclick = ()=>{
+      if(S.coins>=cost && !S[ownedKey]){
+        S.coins -= cost; S[ownedKey]=true; S.vehicle = vehicleId; saveState();
+        renderShop(); updateHud();
+      }
+    };
+  } else {
+    btn.textContent = t("locked", {n: cost-S.coins});
+    btn.className = "special-btn locked"; btn.onclick = null;
+  }
+}
+function renderSpecial(){
+  const btn = document.getElementById("specialBtn");
+  if(S.spacecraft){
+    btn.textContent = t("unlocked"); btn.className="special-btn owned";
+    btn.onclick = null;
+  } else if(S.coins >= SPACECRAFT_COST){
+    btn.textContent = t("buyCoins", {cost: SPACECRAFT_COST}); btn.className = "special-btn";
+    btn.onclick = ()=>{
+      if(S.coins>=SPACECRAFT_COST && !S.spacecraft){
+        S.coins -= SPACECRAFT_COST; S.spacecraft = true; saveState();
+        renderShop(); updateHud(); refreshMarsMenuItem();
+      }
+    };
+  } else {
+    btn.textContent = t("locked", {n: SPACECRAFT_COST-S.coins});
+    btn.className = "special-btn locked";
+    btn.onclick = null;
+  }
+}
+
+/* --- Stats --- */
+function renderStats(){
+  const grid = document.getElementById("statGrid");
+  const distKm = (S.totalSteps * stepDistance() / 1000).toFixed(2);
+  const rows = [
+    [t("totalSteps"), S.totalSteps.toLocaleString()],
+    [t("totalCoinsEarned"), S.totalCoinsEarned.toLocaleString()],
+    [t("coinsOnHand"), S.coins.toLocaleString()],
+    [t("distanceWalked"), distKm+" km"],
+    [t("currentSpeed"), speedLabel()],
+    [t("currentCharacter"), t(currentCharDef().nameKey)],
+    [t("currentVehicle"), S.vehicle.charAt(0).toUpperCase()+S.vehicle.slice(1)],
+    [t("highestSteps"), S.highestSteps.toLocaleString()],
+    [t("upgradesPurchased"), upgradesPurchasedCount()+" / "+(UPGRADES.length*MAX_LEVEL)],
+    [t("giftCodesUsed"), (S.redeemedCodes||[]).length],
+    [t("marsStatus"), S.spacecraft ? (S.marsCompletions>0? t("visited")+" ("+S.marsCompletions+")":t("spacecraftReady")) : t("lockedStatus")],
+    [t("timeWalking"), Math.floor(S.playSeconds/60)+" min"],
+  ];
+  grid.innerHTML = rows.map(r=>`<div class="stat-row"><div class="k">${r[0]}</div><div class="v">${r[1]}</div></div>`).join("");
+}
+
+/* --- Settings --- */
+function renderSettings(){
+  document.getElementById("volMaster").value = Math.round(S.volMaster*100);
+  document.getElementById("volMusic").value = Math.round(S.volMusic*100);
+  document.getElementById("volNature").value = Math.round(S.volNature*100);
+  document.getElementById("volFootsteps").value = Math.round(S.volFootsteps*100);
+  document.getElementById("pctMaster").textContent = Math.round(S.volMaster*100)+"%";
+  document.getElementById("pctMusic").textContent = Math.round(S.volMusic*100)+"%";
+  document.getElementById("pctNature").textContent = Math.round(S.volNature*100)+"%";
+  document.getElementById("pctFootsteps").textContent = Math.round(S.volFootsteps*100)+"%";
+  document.getElementById("muteSwitch").classList.toggle("on", S.muteAll);
+}
+function wireSlider(id, key, pctId){
+  document.getElementById(id).addEventListener("input", (e)=>{
+    S[key] = e.target.value/100;
+    document.getElementById(pctId).textContent = e.target.value+"%";
+    saveState(); applyVolumes();
+  });
+}
+wireSlider("volMaster","volMaster","pctMaster");
+wireSlider("volMusic","volMusic","pctMusic");
+wireSlider("volNature","volNature","pctNature");
+wireSlider("volFootsteps","volFootsteps","pctFootsteps");
+document.getElementById("muteSwitch").addEventListener("click", ()=>{
+  S.muteAll = !S.muteAll; saveState(); renderSettings(); applyVolumes();
+});
+document.getElementById("resetRow").addEventListener("click", ()=>{
+  if(confirm(t("resetConfirm"))){
+    S = defaultState(); scrollX = 0; mode='earth';
+    saveState(); updateHud(); closeAllScreens();
+    document.getElementById("hud").classList.remove("hidden");
+  }
+});
+
+/* ================================================================
+   LANGUAGE UI (at the END, after all functions are defined)
+   ================================================================ */
+function applyLanguage() {
+  if (!currentLang) return;
+
+  document.getElementById("startNote").innerHTML = t("startNote");
+  document.getElementById("startBtn").textContent = "▶ " + t("start");
+  document.getElementById("rotateText").innerHTML = t("rotate");
+
+  document.getElementById("labelSteps").textContent = t("steps");
+
+  document.getElementById("titleMenu").textContent = t("menu");
+  document.getElementById("menuCharacters").textContent = t("characters");
+  document.getElementById("menuShop").textContent = t("shop");
+  document.getElementById("menuStats").textContent = t("stats");
+  document.getElementById("menuSettings").textContent = t("settings");
+  document.getElementById("menuGift").textContent = t("gift");
+  document.getElementById("menuMars").textContent = t("mars");
+
+  document.getElementById("titleCharacters").textContent = t("chooseWalker");
+  document.getElementById("titleShop").textContent = t("shop");
+  document.getElementById("bicycleName").textContent = t("bicycle");
+  document.getElementById("bicycleDesc").textContent = t("bicycleDesc");
+  document.getElementById("bicyclePrice").textContent = "400 " + t("coins");
+  document.getElementById("carName").textContent = t("car");
+  document.getElementById("carDesc").textContent = t("carDesc");
+  document.getElementById("carPrice").textContent = "650 " + t("coins");
+  document.getElementById("spacecraftName").textContent = t("spacecraft");
+  document.getElementById("spacecraftDesc").textContent = t("spacecraftDesc");
+  document.getElementById("spacecraftPrice").textContent = "1000 " + t("coins");
+
+  document.getElementById("titleStats").textContent = t("stats");
+  document.getElementById("titleSettings").textContent = t("settings");
+  document.getElementById("setMasterVol").textContent = t("masterVolume");
+  document.getElementById("setMusicVol").textContent = t("music");
+  document.getElementById("setNatureVol").textContent = t("nature");
+  document.getElementById("setFootstepsVol").textContent = t("footsteps");
+  document.getElementById("setMuteAll").textContent = t("muteAll");
+  document.getElementById("setReset").textContent = t("resetProgress");
+  document.getElementById("setChangeLang").textContent = t("changeLanguage");
+
+  document.getElementById("titleGift").textContent = t("gift");
+  document.getElementById("giftTitle").textContent = t("redeemGift");
+  document.getElementById("giftDesc").innerHTML = t("giftDesc");
+  document.getElementById("giftInput").placeholder = t("enterCode");
+  document.getElementById("giftBtn").textContent = t("redeem");
+  document.getElementById("giftHistoryTitle").textContent = t("redeemedCodes");
+
+  document.getElementById("returnBtn").textContent = t("returnToJourney");
+
+  // re-render dynamic screens if open
+  if (document.getElementById("screen-characters").classList.contains("active")) renderCharacters();
+  if (document.getElementById("screen-shop").classList.contains("active")) renderShop();
+  if (document.getElementById("screen-stats").classList.contains("active")) renderStats();
+  if (document.getElementById("screen-gift").classList.contains("active")) renderGiftScreen();
+  updateHud();
+}
+
+function selectLanguage(lang) {
+  currentLang = lang;
+  try { localStorage.setItem(LANG_KEY, lang); } catch(e){}
+  document.querySelectorAll("#langGrid .lang-option").forEach(el => el.classList.remove("selected"));
+  const opt = document.querySelector(`#langGrid .lang-option[data-lang="${lang}"]`);
+  if (opt) opt.classList.add("selected");
+
+  document.getElementById("langOverlay").classList.remove("show");
+  document.getElementById("startOverlay").style.display = "flex";
+  startOverlay.classList.remove("hidden");
+
+  if (lang === "fa") {
+    document.body.setAttribute("dir", "rtl");
+    document.getElementById("npcBubble").setAttribute("dir", "rtl");
+  } else {
+    document.body.removeAttribute("dir");
+    document.getElementById("npcBubble").setAttribute("dir", "ltr");
+  }
+
+  applyLanguage();
+}
+
+document.getElementById("langGrid").addEventListener("click", (e) => {
+  const opt = e.target.closest(".lang-option");
+  if (!opt) return;
+  selectLanguage(opt.dataset.lang);
+});
+
+document.getElementById("changeLangRow").addEventListener("click", () => {
+  closeAllScreens();
+  document.getElementById("langOverlay").classList.add("show");
+  document.getElementById("startOverlay").style.display = "none";
+  document.querySelectorAll("#langGrid .lang-option").forEach(el => {
+    el.classList.toggle("selected", el.dataset.lang === currentLang);
+  });
+});
+
+/* ================================================================
+   BOOT: initial language handling
+   ================================================================ */
+if (currentLang) {
+  document.getElementById("langOverlay").classList.remove("show");
+  document.getElementById("startOverlay").style.display = "flex";
+  if (currentLang === "fa") {
+    document.body.setAttribute("dir", "rtl");
+    document.getElementById("npcBubble").setAttribute("dir", "rtl");
+  } else {
+    document.body.removeAttribute("dir");
+    document.getElementById("npcBubble").setAttribute("dir", "ltr");
+  }
+  applyLanguage();
+} else {
+  document.getElementById("langOverlay").classList.add("show");
+  document.getElementById("startOverlay").style.display = "none";
+}
+
+/* ================================================================
+   GESTURE FIXES
+   ================================================================ */
+document.addEventListener("touchmove", (e)=>{
+  if(e.target && e.target.closest && e.target.closest(".screen, [data-scroll], input, textarea")) return;
+  e.preventDefault();
+}, {passive:false});
+document.addEventListener("gesturestart", e=>e.preventDefault());
+
+let lastTouchEnd = 0;
+document.addEventListener("touchend", (e)=>{
+  const now = Date.now();
+  if(now - lastTouchEnd < 300 && e.target && e.target.tagName !== "INPUT" && e.target.tagName !== "TEXTAREA") {
+    e.preventDefault();
+  }
+  lastTouchEnd = now;
+}, {passive:false});
+
+} catch(err) {
+  console.error("Quiet Trails failed to start:", err);
+  // نمایش خطا در صفحه انتخاب زبان برای دیباگ
+  const el = document.getElementById("langOverlay");
+  if (el) {
+    el.classList.add("show");
+    const sub = el.querySelector(".lg-sub");
+    if (sub) sub.textContent = "Error: " + err.message;
+  }
+}
+
+})();
+</script>
+</body>
+</html>
