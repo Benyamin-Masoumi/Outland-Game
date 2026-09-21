@@ -59,5 +59,5 @@ Developed in collaboration by two friends, with heavy use of AI tools for code g
 
 **OUTLAND — Walk, Discover, Go Beyond.**
 **Version :** 1.0.1
-- **My GitHub:** https://github.com/Benyamin-Masoumi
-- **Friend's GitHub:** https://github.com/mahdinikpour56-dev
+- **Friend's GitHub:** https://github.com/Benyamin-Masoumi
+- **My GitHub:** https://github.com/mahdinikpour56-dev
